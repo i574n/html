@@ -1,0 +1,12 @@
+packageDir: ../deps/spiral/lib
+packages:
+    |core-
+    spiral-
+modules:
+    model
+    inline
+    markdown
+    render
+    viewer
+    tree
+    page

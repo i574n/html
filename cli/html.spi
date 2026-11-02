@@ -1,0 +1,120 @@
+:< model
+:< render
+:< markdown
+:< viewer
+:< tree
+:< page
+:< sm'_operators
+:< file_system_operators
+
+:== options = { dir : string; html : string }
+
+:| mode =
+    | Render : options * bool
+    | SelfTest
+    | BadArgs : string
+
+:| outcome =
+    | Wrote : i32
+    | Mismatch : string
+    | Refused : string
+
+:~ ^ exists (path : string) : bool = file_system.file_exists path
+
+:~ ^ is_dir (path : string) : bool = file_system.directory_exists path
+
+:~ ^ is_link (path : string) : bool = file_system.rust_is_symlink path
+
+:~ ^ bytes_of (path : string) : i64 = file_system.rust_file_length path
+
+:~ ^ put (path : string) (text : string) : () = file_system.write_all_text path text
+
+:~ ^ drop_final_newline (s : string) : string = ? sm'.ends_with "\n" s ?> run_of s 0i32 (sm::length s - 1i32) |: s
+
+:~ ^ slurp (path : string) : string = file_system.read_all_text path |> sm'.replace "\r\n" "\n" |> drop_final_newline
+
+:~ ^ names_of (path : string) : list string =
+    ?= file_system.read_dir_names path |> resultm.unbox ?|
+    | Ok names => names |> am'.vec_fold' (\ rest name => sm'.from_std_string name :: rest) []
+    | Error _ => []
+
+:~ ^ walk (path : string) (rel : string) : list node = sort_nodes (nodes_of path rel (names_of path) [])
+:& :~ nodes_of (path : string) (rel : string) (names : list string) (acc : list node) : list node =
+    ?= names ?|
+    | [] => acc
+    | name :: rest => nodes_of path rel rest (node_at (path </> name) (join_rel rel name) name acc)
+:& :~ node_at (child : string) (rel : string) (name : string) (acc : list node) : list node =
+    ? is_link child ?> acc
+    |? is_dir child ?> Folder (name, rel, walk child rel) :: acc
+    |? exists child ?> File (name, rel, bytes_of child) :: acc
+    |: acc
+
+:~ ^ readme_of (dir : string) : option string =
+    := path = dir </> "README.md"
+    ? exists path ?> Some (slurp path) |: None
+
+:~ ^ write_file_page (path : string) (name : string) : i32 =
+    := kind = viewer_of name
+    ?= kind ?|
+    | Direct => 0i32
+    | _ =>
+        ? exists (path ++# ".html") ?> 0i32
+        |:
+            put (path ++# ".html") (page_text (file_page_of name kind (slurp path)))
+            1i32
+
+:~ ^ write_file_pages (dir : string) (ns : list node) (count : i32) : i32 =
+    ?= ns ?|
+    | [] => count
+    | File (name, rel, _) :: rest => write_file_pages dir rest (count + write_file_page (dir </> rel) name)
+    | Folder (_, _, children) :: rest => write_file_pages dir rest (write_file_pages dir children count)
+
+:~ ^ render_tree (o : options) (viewers : bool) : outcome =
+    := ns = walk o::dir ""
+    := pages = ? viewers ?> write_file_pages o::dir ns 0i32 |: 0i32
+    put o::html (page_text (index_page_of viewers ns (readme_of o::dir)))
+    Wrote pages
+
+:~ ^ fixture_dir () : string = file_system.get_temp_path () </> ("html-self-test-" ++# (guid.new_raw_guid () |> guid.to_string))
+
+:~ ^ make_dir (path : string) : () = $'std::fs::create_dir_all(&*!path).unwrap()' : ()
+
+:~ ^ times (s : string) (n : i64) : string = ? n <= 0i64 ?> "" |: s ++# times s (n - 1i64)
+
+:~ ^ lay (dir : string) (n : i64) : () =
+    ? n >= 0i64 ?>
+        make_dir dir
+        put (dir </> "file.txt") (times (digit n) (n + 1i64))
+        lay (dir </> digit n) (n - 1i64)
+
+:~ ^ self_test () : outcome =
+    := dir = fixture_dir ()
+    lay (dir </> "_.root") 3i64
+    := got = walk dir "" |> nodes_html !- |> markup_text
+    := want = nested_a () ++# nested_b () ++# nested_c ()
+    ? got = want ?> Wrote 0i32 |: Mismatch got
+
+:~ ^ mode_of (args : list string) : mode =
+    ? cli_args.has_switch "self-test" args ?> SelfTest
+    |:
+        ?= (cli_args.parse_operands args : result options cli_args.cli_error) ?|
+        | Ok o => Render (o, cli_args.has_switch "viewers" args)
+        | Error e => BadArgs (cli_args.cli_error_text e)
+
+:~ ^ exit_of (o : outcome) : i32 =
+    ?= o ?|
+    | Wrote _ => 0i32
+    | Mismatch got =>
+        console.write_error_line ("html self-test mismatch: " ++# got)
+        1i32
+    | Refused why =>
+        console.write_error_line why
+        2i32
+
+:~ ^ run (m : mode) : outcome =
+    ?= m ?|
+    | Render (o, viewers) => render_tree o viewers
+    | SelfTest => self_test ()
+    | BadArgs why => Refused why
+
+:= main () : i32 = env.command_line_arguments () |> mode_of |> run |> exit_of

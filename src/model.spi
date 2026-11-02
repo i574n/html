@@ -1,0 +1,131 @@
+///- --package . --timeout 600000
+:# model static =
+    :< testing
+
+:< sm'_operators
+
+:| level =
+    | H1
+    | H2
+    | H3
+    | H4
+    | H5
+    | H6
+
+:| align =
+    | AlignNone
+    | AlignLeft
+    | AlignCenter
+    | AlignRight
+
+:| ^ inline =
+    | Text : string
+    | Code : string
+    | Strong : list inline
+    | Link : string * string
+    | Image : string * string
+    | AutoLink : string
+    | LinkedImage : string * string * string
+
+:| block =
+    | Heading : level * list inline
+    | Paragraph : list inline
+    | Bullets : list (list inline)
+    | Numbered : i64 * list (list inline)
+    | CodeBlock : list string
+    | Rule
+    | Table : list align * list (list inline) * list (list (list inline))
+
+:| viewer =
+    | Direct
+    | Source
+    | Delimited
+    | Prose
+
+:| ^ node =
+    | File : string * string * i64
+    | Folder : string * string * list node
+
+:| markup =
+    | Markup : string
+
+:! index_page = ()
+:! file_page = ()
+
+:| ^ page kind =
+    | IndexPage :: markup -> page index_page
+    | FilePage :: markup -> page file_page
+
+:= level_of (n : i32) : option level =
+    ? n = 1i32 ?> Some H1
+    |? n = 2i32 ?> Some H2
+    |? n = 3i32 ?> Some H3
+    |? n = 4i32 ?> Some H4
+    |? n = 5i32 ?> Some H5
+    |? n = 6i32 ?> Some H6
+    |: None
+
+:~ ^ level_tag (l : level) : string =
+    ?= l ?|
+    | H1 => "h1"
+    | H2 => "h2"
+    | H3 => "h3"
+    | H4 => "h4"
+    | H5 => "h5"
+    | H6 => "h6"
+
+:= (++) (a : markup) (b : markup) : markup =
+    ?= a ?|
+    | Markup x =>
+        ?= b ?|
+        | Markup y => Markup (x ++# y)
+
+:~ ^ markup_text (m : markup) : string =
+    ?= m ?|
+    | Markup x => x
+
+:~ ^ trusted (s : string) : markup = Markup s
+
+:~ ^ entity (c : char) : string =
+    ? c = '&' ?> "&amp;"
+    |? c = '<' ?> "&lt;"
+    |? c = '>' ?> "&gt;"
+    |? c = '"' ?> "&quot;"
+    |: ""
+
+:~ ^ run_of (s : string) (from : i32) (until : i32) : string =
+    ? until <= from ?> "" |: sm::slice s { from = from; to = until - 1i32 }
+
+:~ ^ escape_from (s : string) (i : i32) (start : i32) (acc : string) : string =
+    ? i >= sm::length s ?> acc ++# run_of s start i
+    |:
+        := e = entity (sm::index s i)
+        ? e = "" ?> escape_from s (i + 1i32) start acc
+        |: escape_from s (i + 1i32) (i + 1i32) (acc ++# run_of s start i ++# e)
+
+:~ ^ escape (s : string) : markup = Markup (escape_from s 0i32 0i32 "")
+
+:= page_text \* k. (p : page k) : string =
+    ?= p ?|
+    | IndexPage m => markup_text m
+    | FilePage m => markup_text m
+
+///> rust
+:# escape_turns_the_four_specials_into_entities =
+    escape "<a href=\"x\"> & b" |> markup_text |> _assert_eq "&lt;a href=&quot;x&quot;&gt; &amp; b"
+
+///> rust
+:# escape_keeps_plain_and_non_ascii_text =
+    escape "봉쥬르 é plain" |> markup_text |> _assert_eq "봉쥬르 é plain"
+
+///> rust
+:# markup_concatenates_without_escaping_again =
+    (escape "<" ++ trusted "<br>") |> markup_text |> _assert_eq "&lt;<br>"
+
+///> rust
+:# level_of_refuses_out_of_range_heading_levels =
+    (level_of 0i32, level_of 7i32, level_of 3i32 |> optionm.map level_tag) |> _assert_eq (None, None, Some "h3")
+
+///> rust
+:# a_page_keeps_its_kind_static =
+    (page_text (IndexPage (trusted "i")), page_text (FilePage (trusted "f"))) |> _assert_eq ("i", "f")

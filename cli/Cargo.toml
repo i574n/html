@@ -1,0 +1,13 @@
+[package]
+name = "html"
+version = "0.0.1"
+edition = "2024"
+repository = "https://github.com/i574n/html"
+
+[package.metadata.spiral]
+entry = "html.spi"
+output = "html.rs"
+
+[[bin]]
+name = "html"
+path = "html.rs"

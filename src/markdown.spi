@@ -1,0 +1,229 @@
+///- --package . --timeout 600000
+:# markdown static =
+    :< testing
+
+:< model
+:< inline
+:< sm'_operators
+
+:| line =
+    | Blank
+    | Fence
+    | HeadingLine : level * string
+    | RuleLine
+    | RowLine : string
+    | BulletLine : string
+    | NumberLine : i64 * string
+    | PlainLine : string
+
+:| pending =
+    | Idle
+    | InParagraph : list inline
+    | InBullets : list (list inline) * list inline
+    | InNumbered : i64 * list (list inline) * list inline
+    | InCode : list string
+    | InTable : list align * list (list inline) * list (list (list inline))
+
+:~ ^ starts_with (s : string) (prefix : string) : bool =
+    sm::length prefix <= sm::length s && run_of s 0i32 (sm::length prefix) = prefix
+
+:~ ^ spaces_from (s : string) (i : i32) : i32 =
+    ? i < sm::length s && sm::index s i = ' ' ?> spaces_from s (i + 1i32) |: i
+
+:~ ^ trail_from (s : string) (i : i32) : i32 =
+    ? i > 0i32 && sm::index s (i - 1i32) = ' ' ?> trail_from s (i - 1i32) |: i
+
+:~ ^ trim (s : string) : string = run_of s (spaces_from s 0i32) (trail_from s (sm::length s))
+
+:~ ^ hashes_from (s : string) (i : i32) : i32 =
+    ? i < sm::length s && sm::index s i = '#' ?> hashes_from s (i + 1i32) |: i
+
+:~ ^ heading_of (s : string) : option (level * string) =
+    := n = hashes_from s 0i32
+    ? n < sm::length s && sm::index s n = ' ' ?>
+        ?= level_of n ?|
+        | Some l => Some (l, run_of s (n + 1i32) (sm::length s))
+        | None => None
+    |: None
+
+:~ ^ bullet_of (s : string) (lead : i32) : option string =
+    := c = ? lead < sm::length s ?> sm::index s lead |: ' '
+    ? (c = '-' || c = '*') && at_is s (lead + 1i32) ' ' ?> Some (run_of s (lead + 2i32) (sm::length s)) |: None
+
+:~ ^ digit_value (c : char) : i64 =
+    ? c = '0' ?> 0i64 |? c = '1' ?> 1i64 |? c = '2' ?> 2i64 |? c = '3' ?> 3i64 |? c = '4' ?> 4i64
+    |? c = '5' ?> 5i64 |? c = '6' ?> 6i64 |? c = '7' ?> 7i64 |? c = '8' ?> 8i64 |? c = '9' ?> 9i64 |: -1i64
+
+:~ ^ digits_from (s : string) (i : i32) (value : i64) (count : i32) : i64 * i32 =
+    := d = ? i < sm::length s ?> digit_value (sm::index s i) |: -1i64
+    ? d >= 0i64 && count < 9i32 ?> digits_from s (i + 1i32) (value * 10i64 + d) (count + 1i32) |: value, i
+
+:~ ^ number_of (s : string) (lead : i32) : option (i64 * string) =
+    := value, stop = digits_from s lead 0i64 0i32
+    ? stop > lead && at_is s stop '.' && at_is s (stop + 1i32) ' ' ?> Some (value, run_of s (stop + 2i32) (sm::length s))
+    |: None
+
+:~ ^ classify (s : string) : line =
+    := lead = spaces_from s 0i32
+    ? lead = sm::length s ?> Blank
+    |? starts_with s "```" ?> Fence
+    |? s = "---" ?> RuleLine
+    |? sm::index s lead = '|' ?> RowLine s
+    |:
+        ?= heading_of s ?|
+        | Some (l, title) => HeadingLine (l, title)
+        | None =>
+            ?= bullet_of s lead ?|
+            | Some item => BulletLine item
+            | None =>
+                ?= number_of s lead ?|
+                | Some (n, item) => NumberLine (n, item)
+                | None => PlainLine s
+
+:~ ^ align_of (spec : string) : align =
+    := n = sm::length spec
+    := left = n > 0i32 && sm::index spec 0i32 = ':'
+    := right = n > 0i32 && sm::index spec (n - 1i32) = ':'
+    ? left && right ?> AlignCenter |? right ?> AlignRight |? left ?> AlignLeft |: AlignNone
+
+:~ ^ cell_end (s : string) (i : i32) : i32 =
+    ? i >= sm::length s ?> i
+    |? sm::index s i = '\\' && i + 1i32 < sm::length s ?> cell_end s (i + 2i32)
+    |? sm::index s i = '|' ?> i
+    |: cell_end s (i + 1i32)
+
+:~ ^ cells_from (s : string) (i : i32) (acc : list string) : list string =
+    ? i >= sm::length s ?> listm.rev acc
+    |:
+        := stop = cell_end s i
+        := cell = trim (run_of s i stop)
+        ? stop >= sm::length s && cell = "" ?> listm.rev acc |: cells_from s (stop + 1i32) (cell :: acc)
+
+:~ ^ row_cells (row : string) : list string =
+    := body = trim row
+    cells_from (run_of body 1i32 (sm::length body)) 0i32 []
+
+:~ ^ delimiter_chars (s : string) (i : i32) (dash : bool) : bool =
+    ? i >= sm::length s ?> dash
+    |:
+        := c = sm::index s i
+        ? c = '-' ?> delimiter_chars s (i + 1i32) !+
+        |? c = '|' || c = ':' || c = ' ' ?> delimiter_chars s (i + 1i32) dash
+        |: !-
+
+:~ ^ delimiter_aligns (next : list string) : option (list align) =
+    ?= next ?|
+    | s :: _ =>
+        ?= classify s ?|
+        | RowLine row => ? delimiter_chars row 0i32 !- ?> Some (listm.map align_of (row_cells row)) |: None
+        | _ => None
+    | [] => None
+
+:~ ^ after_first (lines : list string) : list string =
+    ?= lines ?|
+    | _ :: rest => rest
+    | [] => []
+
+:~ ^ inline_cells (cells : list string) : list (list inline) = listm.map parse_inline cells
+
+:~ ^ joined (first : list inline) (more : list inline) : list inline = listm.append first (Text " " :: more)
+
+:~ ^ close (state : pending) (blocks : list block) : list block =
+    ?= state ?|
+    | Idle => blocks
+    | InParagraph xs => Paragraph xs :: blocks
+    | InBullets (done, item) => Bullets (listm.rev (item :: done)) :: blocks
+    | InNumbered (start, done, item) => Numbered (start, listm.rev (item :: done)) :: blocks
+    | InCode lines => CodeBlock (listm.rev lines) :: blocks
+    | InTable (aligns, head, rows) => Table (aligns, head, listm.rev rows) :: blocks
+
+:~ ^ continued (state : pending) (s : string) (blocks : list block) : pending * list block =
+    ?= state ?|
+    | InParagraph xs => InParagraph (joined xs (parse_inline s)), blocks
+    | InBullets (done, item) => InBullets (done, joined item (parse_inline (trim s))), blocks
+    | InNumbered (start, done, item) => InNumbered (start, done, joined item (parse_inline (trim s))), blocks
+    | _ => InParagraph (parse_inline s), close state blocks
+
+:~ ^ bulleted (state : pending) (item : string) (blocks : list block) : pending * list block =
+    ?= state ?|
+    | InBullets (done, last) => InBullets (last :: done, parse_inline item), blocks
+    | _ => InBullets ([], parse_inline item), close state blocks
+
+:~ ^ numbered (state : pending) (n : i64) (item : string) (blocks : list block) : pending * list block =
+    ?= state ?|
+    | InNumbered (start, done, last) => InNumbered (start, last :: done, parse_inline item), blocks
+    | _ => InNumbered (n, [], parse_inline item), close state blocks
+
+:~ ^ heading_block (l : level) (title : string) : block = Heading (l, parse_inline title)
+
+:~ ^ blocks_from (lines : list string) (state : pending) (blocks : list block) : list block =
+    ?= lines ?|
+    | [] => listm.rev (close state blocks)
+    | s :: rest =>
+        ?= state ?|
+        | InCode code => ? starts_with s "```" ?> blocks_from rest Idle (close state blocks) |: blocks_from rest (InCode (s :: code)) blocks
+        | InTable (aligns, head, rows) =>
+            ?= classify s ?|
+            | RowLine row => blocks_from rest (InTable (aligns, head, inline_cells (row_cells row) :: rows)) blocks
+            | _ => blocks_from lines Idle (close state blocks)
+        | _ => line_step s rest state blocks
+:& :~ line_step (s : string) (rest : list string) (state : pending) (blocks : list block) : list block =
+    ?= classify s ?|
+    | Fence => blocks_from rest (InCode []) (close state blocks)
+    | Blank => blocks_from rest Idle (close state blocks)
+    | HeadingLine (l, title) => blocks_from rest Idle (heading_block l title :: close state blocks)
+    | RuleLine => blocks_from rest Idle (Rule :: close state blocks)
+    | RowLine row => row_step s row rest state blocks
+    | BulletLine item => resume rest (bulleted state item blocks)
+    | NumberLine (n, item) => resume rest (numbered state n item blocks)
+    | PlainLine _ => resume rest (continued state s blocks)
+:& :~ row_step (s : string) (row : string) (rest : list string) (state : pending) (blocks : list block) : list block =
+    ?= delimiter_aligns rest ?|
+    | Some aligns => blocks_from (after_first rest) (InTable (aligns, inline_cells (row_cells row), [])) (close state blocks)
+    | None => resume rest (continued state s blocks)
+:& :~ resume (rest : list string) (next : pending * list block) : list block =
+    := state, blocks = next
+    blocks_from rest state blocks
+
+:~ ^ lines_from (s : string) (i : i32) (start : i32) (acc : list string) : list string =
+    ? i >= sm::length s ?> listm.rev (run_of s start i :: acc)
+    |? sm::index s i = '\n' ?> lines_from s (i + 1i32) (i + 1i32) (run_of s start i :: acc)
+    |: lines_from s (i + 1i32) start acc
+
+:~ ^ parse_markdown (s : string) : list block = blocks_from (lines_from s 0i32 0i32 []) Idle []
+
+///> rust
+:# headings_need_a_space_and_at_most_six_hashes =
+    parse_markdown "# T\n####### seven\n#tag" |> _assert_eq [Heading (H1, [Text "T"]); Paragraph [Text "####### seven"; Text " "; Text "#tag"]]
+
+///> rust
+:# a_paragraph_joins_its_lines_with_a_space =
+    parse_markdown "one\ntwo\n\nthree" |> _assert_eq [Paragraph [Text "one"; Text " "; Text "two"]; Paragraph [Text "three"]]
+
+///> rust
+:# bullets_flatten_nesting_and_take_lazy_lines =
+    parse_markdown "- top\n  - nested\nmore" |> _assert_eq [Bullets [[Text "top"]; [Text "nested"; Text " "; Text "more"]]]
+
+///> rust
+:# an_ordered_list_keeps_its_start_and_wrapped_lines =
+    parse_markdown "3. three\n   wrapped\n4. four" |> _assert_eq [Numbered (3i64, [[Text "three"; Text " "; Text "wrapped"]; [Text "four"]])]
+
+///> rust
+:# a_bullet_after_an_ordered_list_starts_a_new_list =
+    parse_markdown "1. a\n- b" |> _assert_eq [Numbered (1i64, [[Text "a"]]); Bullets [[Text "b"]]]
+
+///> rust
+:# fenced_code_keeps_lines_verbatim =
+    parse_markdown "```\nlet x = 1 < 2\n```\n---" |> _assert_eq [CodeBlock ["let x = 1 < 2"]; Rule]
+
+///> rust
+:# a_table_needs_a_delimiter_row_and_reads_alignment =
+    parse_markdown "| A | B |\n| :- | -: |\n| `x` | y \\| z |" |> _assert_eq [Table ([AlignLeft; AlignRight], [[Text "A"]; [Text "B"]], [[[Code "x"]; [Text "y "; Text "|"; Text " z"]]])]
+
+///> rust
+:# a_pipe_line_without_a_delimiter_row_is_a_paragraph =
+    parse_markdown "| a |\nb" |> _assert_eq [Paragraph [Text "| a |"; Text " "; Text "b"]]
+
+///> rust
+:# center_alignment_and_a_table_ending_at_a_paragraph =
+    parse_markdown "|h|\n|:-:|\n|v|\nafter" |> _assert_eq [Table ([AlignCenter], [[Text "h"]], [[[Text "v"]]]); Paragraph [Text "after"]]

@@ -1,0 +1,99 @@
+///- --package . --timeout 600000
+:# page static =
+    :< testing
+
+:< model
+:< render
+:< viewer
+:< tree
+:< sm'_operators
+
+:= style () : string = """
+    html {
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+    body {
+        background-color: #222;
+        color: #ccc;
+        margin: 8px;
+        line-height: 1.6;
+        overflow-wrap: anywhere;
+    }
+    a {
+      color: #777;
+      font-size: 15px;
+    }
+    span {
+      font-size: 11px;
+    }
+    div > div {
+      padding-left: 10px;
+    }
+    details > div {
+      padding-left: 19px;
+    }
+    .readme {
+      border-top: 1px solid #444;
+      margin-top: 16px;
+      padding-top: 8px;
+      max-width: 900px;
+    }
+    .readme a {
+      color: #9ab;
+    }
+    .readme pre {
+      background-color: #1a1a1a;
+      padding: 8px;
+      overflow-x: auto;
+    }
+    @media (max-width: 600px) {
+      a {
+        font-size: 16px;
+      }
+      span {
+        font-size: 12px;
+      }
+      div > div {
+        padding-left: 4px;
+      }
+      details > div {
+        padding-left: 10px;
+      }
+    }
+    """
+
+:~ ^ head_html () : markup =
+    := meta = "  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+    trusted ("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n" ++# meta ++# "  <style>\n" ++# style ())
+    ++ trusted "\n  </style>\n</head>\n<body>\n  <div>"
+
+:~ ^ close_html (readme : markup) : markup = trusted "</div>\n" ++ readme ++ trusted "</body>\n</html>\n"
+
+:~ ^ readme_section (text : option string) : markup =
+    ?= text ?|
+    | Some s => trusted "<section class=\"readme\">\n" ++ markdown_html s ++ trusted "</section>\n"
+    | None => trusted ""
+
+:~ ^ index_page_of (viewers : bool) (nodes : list node) (readme : option string) : page index_page =
+    IndexPage (head_html () ++ nodes_html viewers nodes ++ close_html (readme_section readme))
+
+:~ ^ file_page_of (name : string) (kind : viewer) (text : string) : page file_page =
+    := title = trusted "<p>" ++ anchor name (escape name) ++ trusted " <span>raw</span></p>\n"
+    FilePage (head_html () ++ title ++ viewer_body kind text ++ close_html (trusted ""))
+
+///> rust
+:# the_head_matches_dir_tree_html =
+    head_html () |> markup_text |> sm'.ends_with "  }\n}\n  </style>\n</head>\n<body>\n  <div>" |> _assert_eq !+
+
+///> rust
+:# close_wraps_the_readme_before_the_body_end =
+    close_html (trusted "<p>r</p>\n") |> markup_text |> _assert_eq "</div>\n<p>r</p>\n</body>\n</html>\n"
+
+///> rust
+:# an_index_page_without_a_readme =
+    index_page_of !- [] None |> page_text |> _assert_eq (markup_text (head_html ()) ++# "</div>\n</body>\n</html>\n")
+
+///> rust
+:# a_file_page_links_back_to_the_raw_file =
+    file_page_of "a.spi" Source "x < 1" |> page_text |> _assert_eq (markup_text (head_html ()) ++# "<p><a href=\"a.spi\">a.spi</a> <span>raw</span></p>\n<pre><code>x &lt; 1</code></pre>\n</div>\n</body>\n</html>\n")
