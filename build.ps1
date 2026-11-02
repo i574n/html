@@ -16,6 +16,9 @@ $cells | ForEach-Object { Write-Output "build.ps1 / cells / $_" }
 if ($cellsExit -ne 0) { throw "build.ps1 / Spiral test cells exited $cellsExit" }
 if (!($cells -match '^spiral-tests total')) { throw "build.ps1 / Spiral test cells printed no spiral-tests total line" }
 
+if (!(BuildSpiral markdown/entry.spi markdown/entry.rs "html/markdown")) {
+    throw "RUST-FAILED html/markdown / compile"
+}
 if (!(BuildSpiral cli/html.spi cli/html.rs "html/cli")) {
     throw "RUST-FAILED html/cli / compile"
 }
@@ -28,7 +31,7 @@ New-Item -ItemType Directory -Force -Path dist | Out-Null
 Copy-Item -Force (Join-Path $cargoTarget 'release' "html$(_exe)") (Join-Path 'dist' "html$(_exe)")
 { & (Join-Path 'dist' "html$(_exe)") --self-test } | Invoke-Block
 
-$generated = @(Get-ChildItem cli -Filter *.rs | ForEach-Object { [pscustomobject]@{ Path = $_.FullName; Lines = @(Get-Content $_.FullName).Count } } | Sort-Object Lines -Descending)
+$generated = @(Get-ChildItem cli, markdown -Filter *.rs | ForEach-Object { [pscustomobject]@{ Path = $_.FullName; Lines = @(Get-Content $_.FullName).Count } } | Sort-Object Lines -Descending)
 Write-Output "build.ps1 / largest generated file / $($generated[0].Lines) lines / $($generated[0].Path)"
 if ($generated[0].Lines -gt 1000) { throw "build.ps1 / 1000-line gate: $($generated[0].Path) has $($generated[0].Lines) lines" }
 Write-Output "HTML-OK"

@@ -2,7 +2,7 @@ cargo-features = ["profile-rustflags"]
 
 [workspace]
 resolver = "3"
-members = ["cli"]
+members = ["cli", "markdown"]
 
 [profile.release]
 codegen-units = 1

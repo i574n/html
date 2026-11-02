@@ -1,0 +1,13 @@
+[package]
+name = "html_markdown"
+version = "0.0.1"
+edition = "2024"
+repository = "https://github.com/i574n/html"
+
+[package.metadata.spiral]
+entry = "entry.spi"
+output = "entry.rs"
+
+[lib]
+name = "html_markdown"
+path = "entry.rs"

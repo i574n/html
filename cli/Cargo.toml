@@ -11,3 +11,5 @@ output = "html.rs"
 [[bin]]
 name = "html"
 path = "html.rs"
+[dependencies]
+html_markdown = { path = "../markdown" }

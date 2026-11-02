@@ -1,9 +1,9 @@
 :< model
 :< render
 :< markdown
-:< viewer
+:< file_views
 :< tree
-:< page
+:< pages
 :< sm'_operators
 :< file_system_operators
 
@@ -19,7 +19,9 @@
     | Mismatch : string
     | Refused : string
 
-:~ ^ exists (path : string) : bool = file_system.file_exists path
+:~ ^ markdown_markup (text : string) : markup = trusted ($'html_markdown::html_markdown(&*!text)' : string)
+
+:~ ^ present (path : string) : bool = file_system.file_exists path
 
 :~ ^ is_dir (path : string) : bool = file_system.directory_exists path
 
@@ -46,21 +48,21 @@
 :& :~ node_at (child : string) (rel : string) (name : string) (acc : list node) : list node =
     ? is_link child ?> acc
     |? is_dir child ?> Folder (name, rel, walk child rel) :: acc
-    |? exists child ?> File (name, rel, bytes_of child) :: acc
+    |? present child ?> File (name, rel, bytes_of child) :: acc
     |: acc
 
-:~ ^ readme_of (dir : string) : option string =
+:~ ^ readme_of (dir : string) : option markup =
     := path = dir </> "README.md"
-    ? exists path ?> Some (slurp path) |: None
+    ? present path ?> Some (markdown_markup (slurp path)) |: None
 
 :~ ^ write_file_page (path : string) (name : string) : i32 =
     := kind = viewer_of name
     ?= kind ?|
     | Direct => 0i32
     | _ =>
-        ? exists (path ++# ".html") ?> 0i32
+        ? present (path ++# ".html") ?> 0i32
         |:
-            put (path ++# ".html") (page_text (file_page_of name kind (slurp path)))
+            put (path ++# ".html") (page_text (file_page_of markdown_markup name kind (slurp path)))
             1i32
 
 :~ ^ write_file_pages (dir : string) (ns : list node) (count : i32) : i32 =
@@ -75,7 +77,8 @@
     put o::html (page_text (index_page_of viewers ns (readme_of o::dir)))
     Wrote pages
 
-:~ ^ fixture_dir () : string = file_system.get_temp_path () </> ("html-self-test-" ++# (guid.new_raw_guid () |> guid.to_string))
+:~ ^ fixture_dir () : string =
+    file_system.get_temp_path () </> ("html-self-test-" ++# (guid.new_raw_guid () |> guid.to_string))
 
 :~ ^ make_dir (path : string) : () = $'std::fs::create_dir_all(&*!path).unwrap()' : ()
 

@@ -1,5 +1,5 @@
 ///- --package . --timeout 600000
-:# inline static =
+:# inline_parse static =
     :< testing
 
 :< model
@@ -23,7 +23,8 @@
     |: double_star s (i + 1i32)
 
 :~ ^ escapable (c : char) : bool =
-    c = '*' || c = '_' || c = '\\' || c = '`' || c = '[' || c = ']' || c = '#' || c = '-' || c = '!' || c = '<' || c = '|'
+    c = '*' || c = '_' || c = '\\' || c = '`' || c = '[' || c = ']'
+    || c = '#' || c = '-' || c = '!' || c = '<' || c = '|'
 
 :~ ^ at_is (s : string) (i : i32) (c : char) : bool = i < sm::length s && sm::index s i = c
 
@@ -62,7 +63,8 @@
 :~ ^ strong_close (s : string) (i : i32) : i32 =
     ? at_is s i '*' && at_is s (i + 1i32) '*' ?> double_star s (i + 2i32) |: -1i32
 
-:~ ^ escaped_at (s : string) (i : i32) : bool = at_is s i '\\' && i + 1i32 < sm::length s && escapable (sm::index s (i + 1i32))
+:~ ^ escaped_at (s : string) (i : i32) : bool =
+    at_is s i '\\' && i + 1i32 < sm::length s && escapable (sm::index s (i + 1i32))
 
 :~ ^ rev_inlines (xs : list inline) (acc : list inline) : list inline =
     ?= xs ?|
@@ -71,16 +73,20 @@
 
 :~ ^ inlines_from (s : string) (i : i32) (acc : list inline) : list inline =
     ? i >= sm::length s ?> rev_inlines acc []
-    |? code_close s i >= 0i32 ?> inlines_from s (code_close s i + 1i32) (Code (run_of s (i + 1i32) (code_close s i)) :: acc)
+    |? code_close s i >= 0i32 ?> code_at s i (code_close s i) acc
     |? escaped_at s i ?> inlines_from s (i + 2i32) (Text (run_of s (i + 1i32) (i + 2i32)) :: acc)
     |? strong_close s i >= 0i32 ?> strong_at s i (strong_close s i) acc
-    |? auto_close s i >= 0i32 ?> inlines_from s (auto_close s i + 1i32) (AutoLink (run_of s (i + 1i32) (auto_close s i)) :: acc)
+    |? auto_close s i >= 0i32 ?> auto_at s i (auto_close s i) acc
     |? image_close s i >= 0i32 ?> inlines_from s (image_close s i + 1i32) (image_at s i (image_close s i) :: acc)
     |? badge_close s i >= 0i32 ?> inlines_from s (badge_close s i + 1i32) (linked_image_at s i (badge_close s i) :: acc)
     |? link_close s i >= 0i32 ?> inlines_from s (link_close s i + 1i32) (link_at s i (link_close s i) :: acc)
     |: plain_at s i acc
 :& :~ strong_at (s : string) (i : i32) (close : i32) (acc : list inline) : list inline =
     inlines_from s (close + 2i32) (Strong (inlines_from (run_of s (i + 2i32) close) 0i32 []) :: acc)
+:& :~ code_at (s : string) (i : i32) (close : i32) (acc : list inline) : list inline =
+    inlines_from s (close + 1i32) (Code (run_of s (i + 1i32) close) :: acc)
+:& :~ auto_at (s : string) (i : i32) (close : i32) (acc : list inline) : list inline =
+    inlines_from s (close + 1i32) (AutoLink (run_of s (i + 1i32) close) :: acc)
 :& :~ plain_at (s : string) (i : i32) (acc : list inline) : list inline =
     := stop = next_marker s (i + 1i32)
     inlines_from s stop (Text (run_of s i stop) :: acc)
@@ -93,7 +99,8 @@
 
 ///> rust
 :# backticks_make_code_and_a_lone_backtick_stays_text =
-    (parse_inline "a `b` c", parse_inline "x ` y") |> _assert_eq ([Text "a "; Code "b"; Text " c"], [Text "x "; Text "` y"])
+    (parse_inline "a `b` c", parse_inline "x ` y")
+    |> _assert_eq ([Text "a "; Code "b"; Text " c"], [Text "x "; Text "` y"])
 
 ///> rust
 :# a_link_keeps_label_and_href =
@@ -101,7 +108,8 @@
 
 ///> rust
 :# an_image_and_a_badge_link =
-    parse_inline "![logo](l.png) [![CI](b.svg)](ci.html)" |> _assert_eq [Image ("logo", "l.png"); Text " "; LinkedImage ("CI", "b.svg", "ci.html")]
+    parse_inline "![logo](l.png) [![CI](b.svg)](ci.html)"
+    |> _assert_eq [Image ("logo", "l.png"); Text " "; LinkedImage ("CI", "b.svg", "ci.html")]
 
 ///> rust
 :# double_stars_nest_inline_content =

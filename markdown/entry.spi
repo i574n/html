@@ -1,0 +1,6 @@
+:< model
+:< render
+
+:= main () : i32 =
+    export "html_markdown" ((\ text => md text) : string -> string)
+    0i32

@@ -4,9 +4,9 @@ packages:
     spiral-
 modules:
     model
-    inline
+    inline_parse
     markdown
     render
-    viewer
+    file_views
     tree
-    page
+    pages

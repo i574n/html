@@ -3,7 +3,7 @@
     :< testing
 
 :< model
-:< inline
+:< inline_parse
 :< sm'_operators
 
 :| line =
@@ -25,7 +25,7 @@
     | InTable : list align * list (list inline) * list (list (list inline))
 
 :~ ^ starts_with (s : string) (prefix : string) : bool =
-    sm::length prefix <= sm::length s && run_of s 0i32 (sm::length prefix) = prefix
+    (sm::length prefix : i32) <= sm::length s && run_of s 0i32 (sm::length prefix) = prefix
 
 :~ ^ spaces_from (s : string) (i : i32) : i32 =
     ? i < sm::length s && sm::index s i = ' ' ?> spaces_from s (i + 1i32) |: i
@@ -60,7 +60,8 @@
 
 :~ ^ number_of (s : string) (lead : i32) : option (i64 * string) =
     := value, stop = digits_from s lead 0i64 0i32
-    ? stop > lead && at_is s stop '.' && at_is s (stop + 1i32) ' ' ?> Some (value, run_of s (stop + 2i32) (sm::length s))
+    ? stop > lead && at_is s stop '.' && at_is s (stop + 1i32) ' '
+    ?> Some (value, run_of s (stop + 2i32) (sm::length s))
     |: None
 
 :~ ^ classify (s : string) : line =
@@ -161,7 +162,9 @@
     | [] => listm.rev (close state blocks)
     | s :: rest =>
         ?= state ?|
-        | InCode code => ? starts_with s "```" ?> blocks_from rest Idle (close state blocks) |: blocks_from rest (InCode (s :: code)) blocks
+        | InCode code =>
+            ? starts_with s "```" ?> blocks_from rest Idle (close state blocks)
+            |: blocks_from rest (InCode (s :: code)) blocks
         | InTable (aligns, head, rows) =>
             ?= classify s ?|
             | RowLine row => blocks_from rest (InTable (aligns, head, inline_cells (row_cells row) :: rows)) blocks
@@ -179,7 +182,8 @@
     | PlainLine _ => resume rest (continued state s blocks)
 :& :~ row_step (s : string) (row : string) (rest : list string) (state : pending) (blocks : list block) : list block =
     ?= delimiter_aligns rest ?|
-    | Some aligns => blocks_from (after_first rest) (InTable (aligns, inline_cells (row_cells row), [])) (close state blocks)
+    | Some aligns =>
+        blocks_from (after_first rest) (InTable (aligns, inline_cells (row_cells row), [])) (close state blocks)
     | None => resume rest (continued state s blocks)
 :& :~ resume (rest : list string) (next : pending * list block) : list block =
     := state, blocks = next
@@ -192,38 +196,56 @@
 
 :~ ^ parse_markdown (s : string) : list block = blocks_from (lines_from s 0i32 0i32 []) Idle []
 
-///> rust
+
+
 :# headings_need_a_space_and_at_most_six_hashes =
-    parse_markdown "# T\n####### seven\n#tag" |> _assert_eq [Heading (H1, [Text "T"]); Paragraph [Text "####### seven"; Text " "; Text "#tag"]]
+    parse_markdown "# T\n####### seven\n#tag"
+    |> _assert_eq [Heading (H1, [Text "T"]); Paragraph [Text "####### seven"; Text " "; Text "#tag"]]
 
-///> rust
+
+
 :# a_paragraph_joins_its_lines_with_a_space =
-    parse_markdown "one\ntwo\n\nthree" |> _assert_eq [Paragraph [Text "one"; Text " "; Text "two"]; Paragraph [Text "three"]]
+    parse_markdown "one\ntwo\n\nthree"
+    |> _assert_eq [Paragraph [Text "one"; Text " "; Text "two"]; Paragraph [Text "three"]]
 
-///> rust
+
+
 :# bullets_flatten_nesting_and_take_lazy_lines =
-    parse_markdown "- top\n  - nested\nmore" |> _assert_eq [Bullets [[Text "top"]; [Text "nested"; Text " "; Text "more"]]]
+    parse_markdown "- top\n  - nested\nmore"
+    |> _assert_eq [Bullets [[Text "top"]; [Text "nested"; Text " "; Text "more"]]]
 
-///> rust
+
+
 :# an_ordered_list_keeps_its_start_and_wrapped_lines =
-    parse_markdown "3. three\n   wrapped\n4. four" |> _assert_eq [Numbered (3i64, [[Text "three"; Text " "; Text "wrapped"]; [Text "four"]])]
+    parse_markdown "3. three\n   wrapped\n4. four"
+    |> _assert_eq [Numbered (3i64, [[Text "three"; Text " "; Text "wrapped"]; [Text "four"]])]
 
-///> rust
+
+
 :# a_bullet_after_an_ordered_list_starts_a_new_list =
     parse_markdown "1. a\n- b" |> _assert_eq [Numbered (1i64, [[Text "a"]]); Bullets [[Text "b"]]]
 
-///> rust
+
+
 :# fenced_code_keeps_lines_verbatim =
     parse_markdown "```\nlet x = 1 < 2\n```\n---" |> _assert_eq [CodeBlock ["let x = 1 < 2"]; Rule]
 
-///> rust
-:# a_table_needs_a_delimiter_row_and_reads_alignment =
-    parse_markdown "| A | B |\n| :- | -: |\n| `x` | y \\| z |" |> _assert_eq [Table ([AlignLeft; AlignRight], [[Text "A"]; [Text "B"]], [[[Code "x"]; [Text "y "; Text "|"; Text " z"]]])]
+
+
+:= table_fixture_row () : list (list inline) = [[Code "x"]; [Text "y "; Text "|"; Text " z"]]
 
 ///> rust
+:# a_table_needs_a_delimiter_row_and_reads_alignment =
+    parse_markdown "| A | B |\n| :- | -: |\n| `x` | y \\| z |"
+    |> _assert_eq [Table ([AlignLeft; AlignRight], [[Text "A"]; [Text "B"]], [table_fixture_row ()])]
+
+
+
 :# a_pipe_line_without_a_delimiter_row_is_a_paragraph =
     parse_markdown "| a |\nb" |> _assert_eq [Paragraph [Text "| a |"; Text " "; Text "b"]]
 
-///> rust
+
+
 :# center_alignment_and_a_table_ending_at_a_paragraph =
-    parse_markdown "|h|\n|:-:|\n|v|\nafter" |> _assert_eq [Table ([AlignCenter], [[Text "h"]], [[[Text "v"]]]); Paragraph [Text "after"]]
+    parse_markdown "|h|\n|:-:|\n|v|\nafter"
+    |> _assert_eq [Table ([AlignCenter], [[Text "h"]], [[[Text "v"]]]); Paragraph [Text "after"]]

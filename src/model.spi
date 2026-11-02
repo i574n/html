@@ -74,11 +74,13 @@
     | H5 => "h5"
     | H6 => "h6"
 
-:= (++) (a : markup) (b : markup) : markup =
+:~ ^ joined_markup (a : markup) (b : markup) : markup =
     ?= a ?|
     | Markup x =>
         ?= b ?|
         | Markup y => Markup (x ++# y)
+
+:= (++) (a : markup) (b : markup) : markup = joined_markup a b
 
 :~ ^ markup_text (m : markup) : string =
     ?= m ?|

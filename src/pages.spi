@@ -1,10 +1,10 @@
 ///- --package . --timeout 600000
-:# page static =
+:# pages static =
     :< testing
 
 :< model
 :< render
-:< viewer
+:< file_views
 :< tree
 :< sm'_operators
 
@@ -70,17 +70,17 @@
 
 :~ ^ close_html (readme : markup) : markup = trusted "</div>\n" ++ readme ++ trusted "</body>\n</html>\n"
 
-:~ ^ readme_section (text : option string) : markup =
-    ?= text ?|
-    | Some s => trusted "<section class=\"readme\">\n" ++ markdown_html s ++ trusted "</section>\n"
+:~ ^ readme_section (rendered : option markup) : markup =
+    ?= rendered ?|
+    | Some body => trusted "<section class=\"readme\">\n" ++ body ++ trusted "</section>\n"
     | None => trusted ""
 
-:~ ^ index_page_of (viewers : bool) (nodes : list node) (readme : option string) : page index_page =
+:~ ^ index_page_of (viewers : bool) (nodes : list node) (readme : option markup) : page index_page =
     IndexPage (head_html () ++ nodes_html viewers nodes ++ close_html (readme_section readme))
 
-:~ ^ file_page_of (name : string) (kind : viewer) (text : string) : page file_page =
+:= file_page_of (prose : string -> markup) (name : string) (kind : viewer) (text : string) : page file_page =
     := title = trusted "<p>" ++ anchor name (escape name) ++ trusted " <span>raw</span></p>\n"
-    FilePage (head_html () ++ title ++ viewer_body kind text ++ close_html (trusted ""))
+    FilePage (head_html () ++ title ++ viewer_body prose kind text ++ close_html (trusted ""))
 
 ///> rust
 :# the_head_matches_dir_tree_html =
@@ -94,6 +94,11 @@
 :# an_index_page_without_a_readme =
     index_page_of !- [] None |> page_text |> _assert_eq (markup_text (head_html ()) ++# "</div>\n</body>\n</html>\n")
 
+:= file_page_fixture () : string =
+    "<p><a href=\"a.spi\">a.spi</a> <span>raw</span></p>\n"
+    ++# "<pre><code>x &lt; 1</code></pre>\n</div>\n</body>\n</html>\n"
+
 ///> rust
 :# a_file_page_links_back_to_the_raw_file =
-    file_page_of "a.spi" Source "x < 1" |> page_text |> _assert_eq (markup_text (head_html ()) ++# "<p><a href=\"a.spi\">a.spi</a> <span>raw</span></p>\n<pre><code>x &lt; 1</code></pre>\n</div>\n</body>\n</html>\n")
+    file_page_of markdown_html "a.spi" Source "x < 1" |> page_text
+    |> _assert_eq (markup_text (head_html ()) ++# file_page_fixture ())
