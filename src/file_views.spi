@@ -42,9 +42,11 @@
     | Direct => !-
     | _ => !+
 
+:~ cell_of (tag : string) (s : string) (start : i32) (i : i32) : markup = wrap tag (escape (run_of s start i))
+
 :~ ^ tab_cells (tag : string) (s : string) (i : i32) (start : i32) : markup =
-    ? i >= sm::length s ?> wrap tag (escape (run_of s start i))
-    |? sm::index s i = '\t' ?> wrap tag (escape (run_of s start i)) ++ tab_cells tag s (i + 1i32) (i + 1i32)
+    ? i >= sm::length s ?> cell_of tag s start i
+    |? sm::index s i = '\t' ?> cell_of tag s start i ++ tab_cells tag s (i + 1i32) (i + 1i32)
     |: tab_cells tag s (i + 1i32) start
 
 :~ ^ tab_rows (lines : list string) (tag : string) : markup =
@@ -54,16 +56,22 @@
         |: trusted "<tr>" ++ tab_cells tag s 0i32 0i32 ++ trusted "</tr>\n" ++ tab_rows rest "td"
     | [] => trusted ""
 
+:= source_view (text : string) : markup = trusted "<pre><code>" ++ escape text ++ trusted "</code></pre>\n"
+
+:= table_view (text : string) : markup = trusted "<table>\n" ++ tab_rows (lines_from text 0i32 0i32 []) "th" ++ trusted "</table>\n"
+
+:= prose_view (prose : string -> markup) (text : string) : markup = trusted "<section class=\"readme\">\n" ++ prose text ++ trusted "</section>\n"
+
 := viewer_body (prose : string -> markup) (kind : viewer) (text : string) : markup =
     ?= kind ?|
     | Direct => trusted ""
-    | Source => trusted "<pre><code>" ++ escape text ++ trusted "</code></pre>\n"
-    | Delimited => trusted "<table>\n" ++ tab_rows (lines_from text 0i32 0i32 []) "th" ++ trusted "</table>\n"
-    | Prose => trusted "<section class=\"readme\">\n" ++ prose text ++ trusted "</section>\n"
+    | Source => source_view text
+    | Delimited => table_view text
+    | Prose => prose_view prose text
 
 ///> rust
 :# extensions_pick_the_viewer =
-    listm.map viewer_of ["a.spi"; "b.tsv"; "c.md"; "d.txt"; ".spi"; "Cargo.lock"]
+    listm::map viewer_of ["a.spi"; "b.tsv"; "c.md"; "d.txt"; ".spi"; "Cargo.lock"]
     |> _assert_eq [Source; Delimited; Prose; Direct; Direct; Source]
 
 ///> rust

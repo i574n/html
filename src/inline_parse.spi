@@ -71,25 +71,62 @@
     | x :: rest => rev_inlines rest (x :: acc)
     | [] => acc
 
+:== found = option (i32 * inline)
+
+:~ or_else (b : () -> found) (a : found) : found =
+    ?= a ?|
+    | Some _ => a
+    | None => b ()
+
+:~ code_try (s : string) (i : i32) : found =
+    := c = code_close s i
+    ? c >= 0i32 ?> Some (c + 1i32, Code (run_of s (i + 1i32) c)) |: None
+
+:~ escape_try (s : string) (i : i32) : found =
+    ? escaped_at s i ?> Some (i + 2i32, Text (run_of s (i + 1i32) (i + 2i32))) |: None
+
+:~ strong_try (r : string -> list inline) (s : string) (i : i32) : found =
+    := c = strong_close s i
+    ? c >= 0i32 ?> Some (c + 2i32, Strong (r (run_of s (i + 2i32) c))) |: None
+
+:~ auto_try (s : string) (i : i32) : found =
+    := c = auto_close s i
+    ? c >= 0i32 ?> Some (c + 1i32, AutoLink (run_of s (i + 1i32) c)) |: None
+
+:~ image_try (s : string) (i : i32) : found =
+    := c = image_close s i
+    ? c >= 0i32 ?> Some (c + 1i32, image_at s i c) |: None
+
+:~ badge_try (s : string) (i : i32) : found =
+    := c = badge_close s i
+    ? c >= 0i32 ?> Some (c + 1i32, linked_image_at s i c) |: None
+
+:~ link_try (s : string) (i : i32) : found =
+    := c = link_close s i
+    ? c >= 0i32 ?> Some (c + 1i32, link_at s i c) |: None
+
+:~ plain_piece (s : string) (i : i32) : i32 * inline =
+    := stop = next_marker s (i + 1i32)
+    stop, Text (run_of s i stop)
+
+:~ strong_or_auto (r : string -> list inline) (s : string) (i : i32) : found = strong_try r s i |> or_else (\ () => auto_try s i)
+
+:~ marked (r : string -> list inline) (s : string) (i : i32) : found =
+    code_try s i |> or_else (\ () => escape_try s i) |> or_else (\ () => strong_or_auto r s i)
+
+:~ linked_piece (s : string) (i : i32) : found =
+    image_try s i |> or_else (\ () => badge_try s i) |> or_else (\ () => link_try s i)
+
+:~ piece (r : string -> list inline) (s : string) (i : i32) : i32 * inline =
+    ?= marked r s i |> or_else (\ () => linked_piece s i) ?|
+    | Some p => p
+    | None => plain_piece s i
+
 :~ ^ inlines_from (s : string) (i : i32) (acc : list inline) : list inline =
     ? i >= sm::length s ?> rev_inlines acc []
-    |? code_close s i >= 0i32 ?> code_at s i (code_close s i) acc
-    |? escaped_at s i ?> inlines_from s (i + 2i32) (Text (run_of s (i + 1i32) (i + 2i32)) :: acc)
-    |? strong_close s i >= 0i32 ?> strong_at s i (strong_close s i) acc
-    |? auto_close s i >= 0i32 ?> auto_at s i (auto_close s i) acc
-    |? image_close s i >= 0i32 ?> inlines_from s (image_close s i + 1i32) (image_at s i (image_close s i) :: acc)
-    |? badge_close s i >= 0i32 ?> inlines_from s (badge_close s i + 1i32) (linked_image_at s i (badge_close s i) :: acc)
-    |? link_close s i >= 0i32 ?> inlines_from s (link_close s i + 1i32) (link_at s i (link_close s i) :: acc)
-    |: plain_at s i acc
-:& :~ strong_at (s : string) (i : i32) (close : i32) (acc : list inline) : list inline =
-    inlines_from s (close + 2i32) (Strong (inlines_from (run_of s (i + 2i32) close) 0i32 []) :: acc)
-:& :~ code_at (s : string) (i : i32) (close : i32) (acc : list inline) : list inline =
-    inlines_from s (close + 1i32) (Code (run_of s (i + 1i32) close) :: acc)
-:& :~ auto_at (s : string) (i : i32) (close : i32) (acc : list inline) : list inline =
-    inlines_from s (close + 1i32) (AutoLink (run_of s (i + 1i32) close) :: acc)
-:& :~ plain_at (s : string) (i : i32) (acc : list inline) : list inline =
-    := stop = next_marker s (i + 1i32)
-    inlines_from s stop (Text (run_of s i stop) :: acc)
+    |:
+        := next, x = piece (\ t => inlines_from t 0i32 []) s i
+        inlines_from s next (x :: acc)
 
 :~ ^ parse_inline (s : string) : list inline = inlines_from s 0i32 []
 

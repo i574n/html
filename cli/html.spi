@@ -40,36 +40,40 @@
     | Ok names => names |> am'.vec_fold' (\ rest name => sm'.from_std_string name :: rest) []
     | Error _ => []
 
-:~ ^ walk (path : string) (rel : string) : list node = sort_nodes (nodes_of path rel (names_of path) [])
-:& :~ nodes_of (path : string) (rel : string) (names : list string) (acc : list node) : list node =
-    ?= names ?|
-    | [] => acc
-    | name :: rest => nodes_of path rel rest (node_at (path </> name) (join_rel rel name) name acc)
-:& :~ node_at (child : string) (rel : string) (name : string) (acc : list node) : list node =
-    ? is_link child ?> acc
-    |? is_dir child ?> Folder (name, rel, walk child rel) :: acc
-    |? present child ?> File (name, rel, bytes_of child) :: acc
-    |: acc
+:~ node_at (d : string -> string -> list node) (c : string) (rel : string) (n : string) (a : list node) : list node =
+    ? is_link c ?> a
+    |? is_dir c ?> Folder (n, rel, d c rel) :: a
+    |? present c ?> File (n, rel, bytes_of c) :: a
+    |: a
+
+:~ ^ nodes_of (d : string -> string -> list node) (path : string) (rel : string) (ns : list string) (a : list node) : list node =
+    ?= ns ?|
+    | [] => a
+    | n :: rest => nodes_of d path rel rest (node_at d (path </> n) (join_rel rel n) n a)
+
+:~ ^ walk (path : string) (rel : string) : list node = sort_nodes (nodes_of walk path rel (names_of path) [])
 
 :~ ^ readme_of (dir : string) : option markup =
     := path = dir </> "README.md"
     ? present path ?> Some (markdown_markup (slurp path)) |: None
 
-:~ ^ write_file_page (path : string) (name : string) : i32 =
+:~ put_page (path : string) (name : string) (kind : viewer) : i32 =
+    put (path ++# ".html") (page_text (file_page_of markdown_markup name kind (slurp path)))
+    1i32
+
+:~ write_file_page (path : string) (name : string) : i32 =
     := kind = viewer_of name
     ?= kind ?|
     | Direct => 0i32
-    | _ =>
-        ? present (path ++# ".html") ?> 0i32
-        |:
-            put (path ++# ".html") (page_text (file_page_of markdown_markup name kind (slurp path)))
-            1i32
+    | _ => ? present (path ++# ".html") ?> 0i32 |: put_page path name kind
 
-:~ ^ write_file_pages (dir : string) (ns : list node) (count : i32) : i32 =
+:~ page_at (dir : string) (rel : string) (name : string) : i32 = write_file_page (dir </> rel) name
+
+:~ ^ write_file_pages (dir : string) (ns : list node) (k : i32) : i32 =
     ?= ns ?|
-    | [] => count
-    | File (name, rel, _) :: rest => write_file_pages dir rest (count + write_file_page (dir </> rel) name)
-    | Folder (_, _, children) :: rest => write_file_pages dir rest (write_file_pages dir children count)
+    | [] => k
+    | File (n, r, _) :: xs => write_file_pages dir xs (k + page_at dir r n)
+    | Folder (_, _, cs) :: xs => write_file_pages dir xs (write_file_pages dir cs k)
 
 :~ ^ render_tree (o : options) (viewers : bool) : outcome =
     := ns = walk o::dir ""
@@ -97,12 +101,12 @@
     := want = nested_a () ++# nested_b () ++# nested_c ()
     ? got = want ?> Wrote 0i32 |: Mismatch got
 
-:~ ^ mode_of (args : list string) : mode =
-    ? cli_args.has_switch "self-test" args ?> SelfTest
-    |:
-        ?= (cli_args.parse_operands args : result options cli_args.cli_error) ?|
-        | Ok o => Render (o, cli_args.has_switch "viewers" args)
-        | Error e => BadArgs (cli_args.cli_error_text e)
+:~ render_mode (args : list string) : mode =
+    ?= (cli_args.parse_operands args : result options cli_args.cli_error) ?|
+    | Ok o => Render (o, cli_args.has_switch "viewers" args)
+    | Error e => BadArgs (cli_args.cli_error_text e)
+
+:~ mode_of (args : list string) : mode = ? cli_args.has_switch "self-test" args ?> SelfTest |: render_mode args
 
 :~ ^ exit_of (o : outcome) : i32 =
     ?= o ?|

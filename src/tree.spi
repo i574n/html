@@ -27,13 +27,14 @@
     | n :: rest => node_bytes n + nodes_bytes rest
     | [] => 0i64
 
+:~ char_order (a : string) (b : string) (i : i32) : i32 = ? sm'.char_code (sm::index a i) < sm'.char_code (sm::index b i) ?> -1i32 |: 1i32
+
 :~ ^ compare_from (a : string) (b : string) (i : i32) : i32 =
     ? i = sm::length a && i = sm::length b ?> 0i32
     |? i = sm::length a ?> -1i32
     |? i = sm::length b ?> 1i32
     |? sm::index a i = sm::index b i ?> compare_from a b (i + 1i32)
-    |? sm'.char_code (sm::index a i) < sm'.char_code (sm::index b i) ?> -1i32
-    |: 1i32
+    |: char_order a b i
 
 :~ ^ folder_rank (n : node) : i32 =
     ?= n ?|
@@ -64,21 +65,28 @@
 :~ ^ entry_link (icon : string) (href : string) (name : string) (bytes : i64) : markup =
     trusted (icon ++# " ") ++ anchor href (escape name) ++ trusted ("<span> (" ++# size_label bytes ++# ")</span>")
 
-:~ ^ file_html (viewers : bool) (name : string) (rel : string) (bytes : i64) : markup =
+:~ raw_link (rel : string) : markup = trusted " " ++ anchor rel (trusted "<span>raw</span>")
+
+:~ file_html (viewers : bool) (name : string) (rel : string) (bytes : i64) : markup =
     ? viewers && has_viewer name
-    ?> entry_link "&#128196;" (rel ++# ".html") name bytes ++ trusted " " ++ anchor rel (trusted "<span>raw</span>")
+    ?> entry_link "&#128196;" (rel ++# ".html") name bytes ++ raw_link rel
     |: entry_link "&#128196;" rel name bytes
 
-:~ ^ node_html (viewers : bool) (n : node) : markup =
+:~ folder_html (rel : string) (name : string) (bytes : i64) (inner : markup) : markup =
+    := summary = wrap "summary" (entry_link "&#128194;" rel name bytes)
+    trusted "<details open=\"true\">" ++ summary ++ wrap "div" inner ++ trusted "</details>"
+
+:~ node_by (r : list node -> markup) (viewers : bool) (n : node) : markup =
     ?= n ?|
     | File (name, rel, bytes) => wrap "div" (file_html viewers name rel bytes)
-    | Folder (name, rel, children) =>
-        := summary = wrap "summary" (entry_link "&#128194;" rel name (nodes_bytes children))
-        trusted "<details open=\"true\">" ++ summary ++ wrap "div" (nodes_html viewers children) ++ trusted "</details>"
-:& :~ nodes_html (viewers : bool) (ns : list node) : markup =
+    | Folder (name, rel, cs) => folder_html rel name (nodes_bytes cs) (r cs)
+
+:~ ^ nodes_html (viewers : bool) (ns : list node) : markup =
     ?= ns ?|
-    | n :: rest => node_html viewers n ++ nodes_html viewers rest
+    | n :: rest => node_by (nodes_html viewers) viewers n ++ nodes_html viewers rest
     | [] => trusted ""
+
+:~ node_html (viewers : bool) (n : node) : markup = node_by (nodes_html viewers) viewers n
 
 :+ to_html node = \ n => node_html !- n
 
@@ -93,16 +101,22 @@
 := linked_fixture () : string =
     "<div>&#128196; <a href=\"a.spi.html\">a.spi</a><span> (5.00 B)</span> <a href=\"a.spi\"><span>raw</span></a></div>"
 
+:= plain_fixture () : string = "<div>&#128196; <a href=\"c.txt\">c.txt</a><span> (1.00 B)</span></div>"
+
 := nested_fixture () : list node = [Folder ("_.root", "_.root", level_fixture 3i64 "_.root")]
 
-:= nested_a () : string =
+:= nested_a1 () : string =
     "<details open=\"true\"><summary>&#128194; <a href=\"_.root\">_.root</a><span> (10.00 B)</span></summary><div>"
-    ++# "<details open=\"true\"><summary>&#128194; <a href=\"_.root/3\">3</a><span> (6.00 B)</span></summary><div>"
+
+:= nested_a () : string =
+    nested_a1 () ++# "<details open=\"true\"><summary>&#128194; <a href=\"_.root/3\">3</a><span> (6.00 B)</span></summary><div>"
     ++# "<details open=\"true\"><summary>&#128194; <a href=\"_.root/3/2\">2</a><span> (3.00 B)</span></summary><div>"
 
-:= nested_b () : string =
+:= nested_b1 () : string =
     "<details open=\"true\"><summary>&#128194; <a href=\"_.root/3/2/1\">1</a><span> (1.00 B)</span></summary><div>"
-    ++# "<div>&#128196; <a href=\"_.root/3/2/1/file.txt\">file.txt</a><span> (1.00 B)</span></div></div></details>"
+
+:= nested_b () : string =
+    nested_b1 () ++# "<div>&#128196; <a href=\"_.root/3/2/1/file.txt\">file.txt</a><span> (1.00 B)</span></div></div></details>"
     ++# "<div>&#128196; <a href=\"_.root/3/2/file.txt\">file.txt</a><span> (2.00 B)</span></div></div></details>"
 
 := nested_c () : string =
@@ -131,4 +145,4 @@
 :# a_linked_file_gets_a_viewer_page_and_a_raw_link =
     := linked = node_html !+ (File ("a.spi", "a.spi", 5i64)) |> markup_text
     (linked, node_html !+ (File ("c.txt", "c.txt", 1i64)) |> markup_text)
-    |> _assert_eq (linked_fixture (), "<div>&#128196; <a href=\"c.txt\">c.txt</a><span> (1.00 B)</span></div>")
+    |> _assert_eq (linked_fixture (), plain_fixture ())

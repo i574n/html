@@ -18,19 +18,34 @@
 :~ ^ image (alt : string) (src : string) : markup =
     trusted "<img src=" ++ quoted src ++ trusted " alt=" ++ quoted alt ++ trusted ">"
 
-:~ ^ inline_html (x : inline) : markup =
+:~ linked (label : string) (href : string) : markup = anchor href (escape label)
+
+:~ badge ((alt, src, href) : string * string * string) : markup = anchor href (image alt src)
+
+:~ code_of (s : string) : markup = wrap "code" (escape s)
+
+:~ strong (m : markup) : markup = wrap "strong" m
+
+:~ pic ((a, s) : string * string) : markup = image a s
+
+:~ link_html ((l, h) : string * string) : markup = linked l h
+
+:~ inline_by (r : list inline -> markup) (x : inline) : markup =
     ?= x ?|
     | Text s => escape s
-    | Code s => wrap "code" (escape s)
-    | Strong xs => wrap "strong" (inlines_html xs)
-    | Link (label, href) => anchor href (escape label)
-    | Image (alt, src) => image alt src
-    | AutoLink url => anchor url (escape url)
-    | LinkedImage (alt, src, href) => anchor href (image alt src)
-:& :~ inlines_html (xs : list inline) : markup =
+    | Code s => code_of s
+    | Strong y => strong (r y)
+    | Link l => link_html l
+    | Image i => pic i
+    | AutoLink u => linked u u
+    | LinkedImage b => badge b
+
+:~ ^ inlines_html (xs : list inline) : markup =
     ?= xs ?|
-    | x :: rest => inline_html x ++ inlines_html rest
+    | x :: rest => inline_by inlines_html x ++ inlines_html rest
     | [] => trusted ""
+
+:~ inline_html (x : inline) : markup = inline_by inlines_html x
 
 :~ ^ align_attr (a : align) : string =
     ?= a ?|
@@ -42,13 +57,17 @@
 :~ ^ cell_html (tag : string) (a : align) (cell : list inline) : markup =
     trusted ("<" ++# tag ++# align_attr a ++# ">") ++ inlines_html cell ++ trusted ("</" ++# tag ++# ">")
 
+:~ align_head (aligns : list align) : align * list align =
+    ?= aligns ?|
+    | a :: more => a, more
+    | [] => AlignNone, []
+
 :~ ^ cells_html (tag : string) (aligns : list align) (cells : list (list inline)) : markup =
     ?= cells ?|
     | [] => trusted ""
     | cell :: rest =>
-        ?= aligns ?|
-        | a :: more => cell_html tag a cell ++ cells_html tag more rest
-        | [] => cell_html tag AlignNone cell ++ cells_html tag [] rest
+        := a, more = align_head aligns
+        cell_html tag a cell ++ cells_html tag more rest
 
 :~ ^ row_html (tag : string) (aligns : list align) (cells : list (list inline)) : markup =
     trusted "<tr>" ++ cells_html tag aligns cells ++ trusted "</tr>\n"
@@ -80,15 +99,30 @@
     trusted "<table>\n<thead>\n" ++ row_html "th" aligns head ++ trusted "</thead>\n<tbody>\n"
     ++ rows_html aligns rows ++ trusted "</tbody>\n</table>\n"
 
-:~ ^ block_html (b : block) : markup =
+:~ heading_html ((l, xs) : level * list inline) : markup = wrap (level_tag l) (inlines_html xs) ++ trusted "\n"
+
+:~ para_html (xs : list inline) : markup = trusted "<p>" ++ inlines_html xs ++ trusted "</p>\n"
+
+:~ bullets_html (items : list (list inline)) : markup = trusted "<ul>\n" ++ items_html items ++ trusted "</ul>\n"
+
+:~ numbered_html ((start, items) : i64 * list (list inline)) : markup =
+    trusted (ordered_open start) ++ items_html items ++ trusted "</ol>\n"
+
+:~ pre_html (lines : list string) : markup = trusted "<pre><code>" ++ code_html lines ++ trusted "</code></pre>\n"
+
+:~ hr () : markup = trusted "<hr>\n"
+
+:~ table_of ((a, h, r) : list align * list (list inline) * list (list (list inline))) : markup = table_html a h r
+
+:~ block_html (b : block) : markup =
     ?= b ?|
-    | Heading (l, xs) => wrap (level_tag l) (inlines_html xs) ++ trusted "\n"
-    | Paragraph xs => trusted "<p>" ++ inlines_html xs ++ trusted "</p>\n"
-    | Bullets items => trusted "<ul>\n" ++ items_html items ++ trusted "</ul>\n"
-    | Numbered (start, items) => trusted (ordered_open start) ++ items_html items ++ trusted "</ol>\n"
-    | CodeBlock lines => trusted "<pre><code>" ++ code_html lines ++ trusted "</code></pre>\n"
-    | Rule => trusted "<hr>\n"
-    | Table (aligns, head, rows) => table_html aligns head rows
+    | Heading h => heading_html h
+    | Paragraph x => para_html x
+    | Bullets x => bullets_html x
+    | Numbered n => numbered_html n
+    | CodeBlock x => pre_html x
+    | Rule => hr ()
+    | Table t => table_of t
 
 :~ ^ blocks_html (bs : list block) : markup =
     ?= bs ?|
@@ -144,9 +178,11 @@
     md "```\nlet x = 1 < 2\n```\n\n---" |> _assert_eq "<pre><code>let x = 1 &lt; 2\n</code></pre>\n<hr>\n"
 
 := table_md () : string = "| A | B |\n| :- | -: |\n| `x` | y \\| z |"
+
 := table_head () : string =
     "<table>\n<thead>\n<tr><th style=\"text-align: left\">A</th>"
     ++# "<th style=\"text-align: right\">B</th></tr>\n</thead>\n"
+
 := table_body () : string =
     "<tbody>\n<tr><td style=\"text-align: left\"><code>x</code></td>"
     ++# "<td style=\"text-align: right\">y | z</td></tr>\n</tbody>\n</table>\n"
@@ -155,10 +191,12 @@
 :# a_gfm_table_renders_alignment_and_escaped_pipes =
     md (table_md ()) |> _assert_eq (table_head () ++# table_body ())
 
-:= readme_md () : string =
+:= readme_md_head () : string =
     "# Title\n\nSome `code` and [a link](x.html).\n\n- one\n- two <b>\n\n봉쥬르 & é [깃허브](k.html)\n\n"
     ++# "Hi! ![logo](logo.png) [![CI](b.svg)](ci.html)\n\n**Bold** and <https://x.org> and \\*star\\*\n\n"
-    ++# "---\n\n- top\n  - nested\n\n```\nlet x = 1 < 2\n```\n\n" ++# table_md () ++# "\n\n"
+
+:= readme_md () : string =
+    readme_md_head () ++# "---\n\n- top\n  - nested\n\n```\nlet x = 1 < 2\n```\n\n" ++# table_md () ++# "\n\n"
     ++# "3. three\n   wrapped\n4. four\n- lazy\nmore\n"
 
 := readme_a () : string =

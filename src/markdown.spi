@@ -64,22 +64,27 @@
     ?> Some (value, run_of s (stop + 2i32) (sm::length s))
     |: None
 
-:~ ^ classify (s : string) : line =
-    := lead = spaces_from s 0i32
-    ? lead = sm::length s ?> Blank
-    |? starts_with s "```" ?> Fence
-    |? s = "---" ?> RuleLine
-    |? sm::index s lead = '|' ?> RowLine s
+:~ listed (s : string) (lead : i32) : line =
+    ?= bullet_of s lead ?|
+    | Some item => BulletLine item
+    | None =>
+        ?= number_of s lead ?|
+        | Some n => NumberLine n
+        | None => PlainLine s
+
+:~ shaped (s : string) (ld : i32) : line =
+    ? sm::index s ld = '|' ?> RowLine s
     |:
         ?= heading_of s ?|
-        | Some (l, title) => HeadingLine (l, title)
-        | None =>
-            ?= bullet_of s lead ?|
-            | Some item => BulletLine item
-            | None =>
-                ?= number_of s lead ?|
-                | Some (n, item) => NumberLine (n, item)
-                | None => PlainLine s
+        | Some h => HeadingLine h
+        | None => listed s ld
+
+:~ classify (s : string) : line =
+    := ld = spaces_from s 0i32
+    ? ld = sm::length s ?> Blank
+    |? starts_with s "```" ?> Fence
+    |? s = "---" ?> RuleLine
+    |: shaped s ld
 
 :~ ^ align_of (spec : string) : align =
     := n = sm::length spec
@@ -93,30 +98,32 @@
     |? sm::index s i = '|' ?> i
     |: cell_end s (i + 1i32)
 
-:~ ^ cells_from (s : string) (i : i32) (acc : list string) : list string =
-    ? i >= sm::length s ?> listm.rev acc
+:~ ^ cells_from (s : string) (i : i32) (a : list string) : list string =
+    ? i >= sm::length s ?> listm::rev a
     |:
-        := stop = cell_end s i
-        := cell = trim (run_of s i stop)
-        ? stop >= sm::length s && cell = "" ?> listm.rev acc |: cells_from s (stop + 1i32) (cell :: acc)
+        := e = cell_end s i
+        := x = trim (run_of s i e)
+        ? e >= sm::length s && x = "" ?> listm::rev a |: cells_from s (e + 1i32) (x :: a)
 
 :~ ^ row_cells (row : string) : list string =
     := body = trim row
     cells_from (run_of body 1i32 (sm::length body)) 0i32 []
+
+:~ table_char (c : char) : bool = c = '|' || c = ':' || c = ' '
 
 :~ ^ delimiter_chars (s : string) (i : i32) (dash : bool) : bool =
     ? i >= sm::length s ?> dash
     |:
         := c = sm::index s i
         ? c = '-' ?> delimiter_chars s (i + 1i32) !+
-        |? c = '|' || c = ':' || c = ' ' ?> delimiter_chars s (i + 1i32) dash
+        |? table_char c ?> delimiter_chars s (i + 1i32) dash
         |: !-
 
 :~ ^ delimiter_aligns (next : list string) : option (list align) =
     ?= next ?|
     | s :: _ =>
         ?= classify s ?|
-        | RowLine row => ? delimiter_chars row 0i32 !- ?> Some (listm.map align_of (row_cells row)) |: None
+        | RowLine row => ? delimiter_chars row 0i32 !- ?> Some (listm::map align_of (row_cells row)) |: None
         | _ => None
     | [] => None
 
@@ -125,25 +132,51 @@
     | _ :: rest => rest
     | [] => []
 
-:~ ^ inline_cells (cells : list string) : list (list inline) = listm.map parse_inline cells
+:~ ^ inline_cells (cells : list string) : list (list inline) = listm::map parse_inline cells
 
-:~ ^ joined (first : list inline) (more : list inline) : list inline = listm.append first (Text " " :: more)
+:~ ^ joined (first : list inline) (more : list inline) : list inline = listm::append first (Text " " :: more)
 
-:~ ^ close (state : pending) (blocks : list block) : list block =
-    ?= state ?|
-    | Idle => blocks
-    | InParagraph xs => Paragraph xs :: blocks
-    | InBullets (done, item) => Bullets (listm.rev (item :: done)) :: blocks
-    | InNumbered (start, done, item) => Numbered (start, listm.rev (item :: done)) :: blocks
-    | InCode lines => CodeBlock (listm.rev lines) :: blocks
-    | InTable (aligns, head, rows) => Table (aligns, head, listm.rev rows) :: blocks
+:~ finished (done : list (list inline)) (last : list inline) : list (list inline) = listm::rev (last :: done)
 
-:~ ^ continued (state : pending) (s : string) (blocks : list block) : pending * list block =
-    ?= state ?|
-    | InParagraph xs => InParagraph (joined xs (parse_inline s)), blocks
-    | InBullets (done, item) => InBullets (done, joined item (parse_inline (trim s))), blocks
-    | InNumbered (start, done, item) => InNumbered (start, done, joined item (parse_inline (trim s))), blocks
-    | _ => InParagraph (parse_inline s), close state blocks
+:~ bullets_of ((d, x) : list (list inline) * list inline) : block = Bullets (finished d x)
+
+:~ pre_of (l : list string) : block = CodeBlock (listm::rev l)
+
+:~ numbers_of ((n, d, x) : i64 * list (list inline) * list inline) : block = Numbered (n, finished d x)
+
+:~ rows_of ((a, h, r) : list align * list (list inline) * list (list (list inline))) : block = Table (a, h, listm::rev r)
+
+:~ close (p : pending) (b : list block) : list block =
+    ?= p ?|
+    | Idle => b
+    | InParagraph x => Paragraph x :: b
+    | InBullets u => bullets_of u :: b
+    | InNumbered n => numbers_of n :: b
+    | InCode l => pre_of l :: b
+    | InTable t => rows_of t :: b
+
+:~ joined_trim (item : list inline) (s : string) : list inline = joined item (parse_inline (trim s))
+
+:~ grow_item ((d, x) : list (list inline) * list inline) (s : string) : list (list inline) * list inline = d, joined_trim x s
+
+:~ grow_numbered ((n, d, x) : i64 * list (list inline) * list inline) (s : string) : i64 * list (list inline) * list inline = n, d, joined_trim x s
+
+:~ grow (p : pending) (s : string) : pending =
+    ?= p ?|
+    | InParagraph z => InParagraph (joined z (parse_inline s))
+    | InBullets i => InBullets (grow_item i s)
+    | InNumbered k => InNumbered (grow_numbered k s)
+    | _ => InParagraph (parse_inline s)
+
+:~ continues (st : pending) : bool =
+    ?= st ?|
+    | InParagraph _ => !+
+    | InBullets _ => !+
+    | InNumbered _ => !+
+    | _ => !-
+
+:~ continued (st : pending) (s : string) (bs : list block) : pending * list block =
+    ? continues st ?> grow st s, bs |: grow st s, close st bs
 
 :~ ^ bulleted (state : pending) (item : string) (blocks : list block) : pending * list block =
     ?= state ?|
@@ -152,47 +185,69 @@
 
 :~ ^ numbered (state : pending) (n : i64) (item : string) (blocks : list block) : pending * list block =
     ?= state ?|
-    | InNumbered (start, done, last) => InNumbered (start, last :: done, parse_inline item), blocks
+    | InNumbered (k, d, l) => InNumbered (k, l :: d, parse_inline item), blocks
     | _ => InNumbered (n, [], parse_inline item), close state blocks
 
 :~ ^ heading_block (l : level) (title : string) : block = Heading (l, parse_inline title)
 
-:~ ^ blocks_from (lines : list string) (state : pending) (blocks : list block) : list block =
-    ?= lines ?|
-    | [] => listm.rev (close state blocks)
-    | s :: rest =>
-        ?= state ?|
-        | InCode code =>
-            ? starts_with s "```" ?> blocks_from rest Idle (close state blocks)
-            |: blocks_from rest (InCode (s :: code)) blocks
-        | InTable (aligns, head, rows) =>
-            ?= classify s ?|
-            | RowLine row => blocks_from rest (InTable (aligns, head, inline_cells (row_cells row) :: rows)) blocks
-            | _ => blocks_from lines Idle (close state blocks)
-        | _ => line_step s rest state blocks
-:& :~ line_step (s : string) (rest : list string) (state : pending) (blocks : list block) : list block =
-    ?= classify s ?|
-    | Fence => blocks_from rest (InCode []) (close state blocks)
-    | Blank => blocks_from rest Idle (close state blocks)
-    | HeadingLine (l, title) => blocks_from rest Idle (heading_block l title :: close state blocks)
-    | RuleLine => blocks_from rest Idle (Rule :: close state blocks)
-    | RowLine row => row_step s row rest state blocks
-    | BulletLine item => resume rest (bulleted state item blocks)
-    | NumberLine (n, item) => resume rest (numbered state n item blocks)
-    | PlainLine _ => resume rest (continued state s blocks)
-:& :~ row_step (s : string) (row : string) (rest : list string) (state : pending) (blocks : list block) : list block =
-    ?= delimiter_aligns rest ?|
-    | Some aligns =>
-        blocks_from (after_first rest) (InTable (aligns, inline_cells (row_cells row), [])) (close state blocks)
-    | None => resume rest (continued state s blocks)
-:& :~ resume (rest : list string) (next : pending * list block) : list block =
-    := state, blocks = next
-    blocks_from rest state blocks
+:~ resume (r : list string) (next : pending * list block) =
+    := p, b = next
+    r, p, b
 
-:~ ^ lines_from (s : string) (i : i32) (start : i32) (acc : list string) : list string =
-    ? i >= sm::length s ?> listm.rev (run_of s start i :: acc)
-    |? sm::index s i = '\n' ?> lines_from s (i + 1i32) (i + 1i32) (run_of s start i :: acc)
-    |: lines_from s (i + 1i32) start acc
+:~ row_step (s : string) (row : string) (r : list string) (p : pending) (b : list block) =
+    ?= delimiter_aligns r ?|
+    | Some a => after_first r, InTable (a, inline_cells (row_cells row), []), close p b
+    | None => resume r (continued p s b)
+
+:~ item_step (s : string) (l : line) (r : list string) (p : pending) (b : list block) =
+    ?= l ?|
+    | BulletLine x => resume r (bulleted p x b)
+    | NumberLine (n, x) => resume r (numbered p n x b)
+    | _ => resume r (continued p s b)
+
+:~ ended (l : line) (r : list string) (c : list block) =
+    ?= l ?|
+    | Fence => Some (r, InCode [], c)
+    | Blank => Some (r, Idle, c)
+    | HeadingLine (h, t) => Some (r, Idle, heading_block h t :: c)
+    | RuleLine => Some (r, Idle, Rule :: c)
+    | _ => None
+
+:~ plain_step (s : string) (l : line) (r : list string) (p : pending) (b : list block) =
+    ?= ended l r (close p b) ?|
+    | Some x => x
+    | None => item_step s l r p b
+
+:~ line_step (s : string) (r : list string) (p : pending) (b : list block) =
+    ?= classify s ?|
+    | RowLine row => row_step s row r p b
+    | l => plain_step s l r p b
+
+:~ code_step (s : string) (r : list string) (code : list string) (b : list block) =
+    ? starts_with s "```" ?> r, Idle, close (InCode code) b |: r, InCode (s :: code), b
+
+:~ table_step (s : string) (ls : list string) (r : list string) (p : pending) (b : list block) =
+    ?= p, classify s ?|
+    | InTable (a, h, x), RowLine row => r, InTable (a, h, inline_cells (row_cells row) :: x), b
+    | _ => ls, Idle, close p b
+
+:~ step (ls : list string) (s : string) (r : list string) (p : pending) (b : list block) =
+    ?= p ?|
+    | InCode code => code_step s r code b
+    | InTable _ => table_step s ls r p b
+    | _ => line_step s r p b
+
+:~ ^ blocks_from (ls : list string) (p : pending) (b : list block) : list block =
+    ?= ls ?|
+    | [] => listm::rev (close p b)
+    | s :: r =>
+        := ls2, p2, b2 = step ls s r p b
+        blocks_from ls2 p2 b2
+
+:~ ^ lines_from (s : string) (i : i32) (b : i32) (a : list string) : list string =
+    ? i >= sm::length s ?> listm::rev (run_of s b i :: a)
+    |? sm::index s i = '\n' ?> lines_from s (i + 1i32) (i + 1i32) (run_of s b i :: a)
+    |: lines_from s (i + 1i32) b a
 
 :~ ^ parse_markdown (s : string) : list block = blocks_from (lines_from s 0i32 0i32 []) Idle []
 

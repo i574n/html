@@ -98,12 +98,15 @@
 :~ ^ run_of (s : string) (from : i32) (until : i32) : string =
     ? until <= from ?> "" |: sm::slice s { from = from; to = until - 1i32 }
 
+:~ escape_step (s : string) (i : i32) (start : i32) (acc : string) : i32 * string =
+    := e = entity (sm::index s i)
+    ? e = "" ?> start, acc |: i + 1i32, acc ++# run_of s start i ++# e
+
 :~ ^ escape_from (s : string) (i : i32) (start : i32) (acc : string) : string =
     ? i >= sm::length s ?> acc ++# run_of s start i
     |:
-        := e = entity (sm::index s i)
-        ? e = "" ?> escape_from s (i + 1i32) start acc
-        |: escape_from s (i + 1i32) (i + 1i32) (acc ++# run_of s start i ++# e)
+        := start, acc = escape_step s i start acc
+        escape_from s (i + 1i32) start acc
 
 :~ ^ escape (s : string) : markup = Markup (escape_from s 0i32 0i32 "")
 
@@ -126,7 +129,7 @@
 
 ///> rust
 :# level_of_refuses_out_of_range_heading_levels =
-    (level_of 0i32, level_of 7i32, level_of 3i32 |> optionm.map level_tag) |> _assert_eq (None, None, Some "h3")
+    (level_of 0i32, level_of 7i32, level_of 3i32 |> optionm::map level_tag) |> _assert_eq (None, None, Some "h3")
 
 ///> rust
 :# a_page_keeps_its_kind_static =

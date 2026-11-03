@@ -8,7 +8,7 @@
 :< tree
 :< sm'_operators
 
-:= style () : string = """
+:= style_1 () : string = """
     html {
       -webkit-text-size-adjust: 100%;
       text-size-adjust: 100%;
@@ -17,6 +17,9 @@
         background-color: #222;
         color: #ccc;
         margin: 8px;
+    """
+
+:= style_2 () : string = """
         line-height: 1.6;
         overflow-wrap: anywhere;
     }
@@ -28,6 +31,9 @@
       font-size: 11px;
     }
     div > div {
+    """
+
+:= style_3 () : string = """
       padding-left: 10px;
     }
     details > div {
@@ -37,6 +43,9 @@
       border-top: 1px solid #444;
       margin-top: 16px;
       padding-top: 8px;
+    """
+
+:= style_4 () : string = """
       max-width: 900px;
     }
     .readme a {
@@ -47,6 +56,9 @@
       padding: 8px;
       overflow-x: auto;
     }
+    """
+
+:= style_5 () : string = """
     @media (max-width: 600px) {
       a {
         font-size: 16px;
@@ -57,15 +69,22 @@
       div > div {
         padding-left: 4px;
       }
+    """
+
+:= style_6 () : string = """
       details > div {
         padding-left: 10px;
       }
     }
     """
 
+:= style () : string =
+    style_1 () ++# "\n" ++# style_2 () ++# "\n" ++# style_3 () ++# "\n" ++# style_4 () ++# "\n" ++# style_5 () ++# "\n" ++# style_6 ()
+
+:= meta_html () : string = "  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+
 :~ ^ head_html () : markup =
-    := meta = "  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
-    trusted ("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n" ++# meta ++# "  <style>\n" ++# style ())
+    trusted ("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n" ++# meta_html () ++# "  <style>\n" ++# style ())
     ++ trusted "\n  </style>\n</head>\n<body>\n  <div>"
 
 :~ ^ close_html (readme : markup) : markup = trusted "</div>\n" ++ readme ++ trusted "</body>\n</html>\n"
@@ -78,9 +97,10 @@
 :~ ^ index_page_of (viewers : bool) (nodes : list node) (readme : option markup) : page index_page =
     IndexPage (head_html () ++ nodes_html viewers nodes ++ close_html (readme_section readme))
 
+:~ title_html (name : string) : markup = trusted "<p>" ++ anchor name (escape name) ++ trusted " <span>raw</span></p>\n"
+
 := file_page_of (prose : string -> markup) (name : string) (kind : viewer) (text : string) : page file_page =
-    := title = trusted "<p>" ++ anchor name (escape name) ++ trusted " <span>raw</span></p>\n"
-    FilePage (head_html () ++ title ++ viewer_body prose kind text ++ close_html (trusted ""))
+    FilePage (head_html () ++ title_html name ++ viewer_body prose kind text ++ close_html (trusted ""))
 
 ///> rust
 :# the_head_matches_dir_tree_html =
@@ -102,3 +122,10 @@
 :# a_file_page_links_back_to_the_raw_file =
     file_page_of markdown_html "a.spi" Source "x < 1" |> page_text
     |> _assert_eq (markup_text (head_html ()) ++# file_page_fixture ())
+
+:~ ^ code_sum (s : string) (i : i32) (acc : i64) : i64 =
+    ? i >= sm::length s ?> acc |: code_sum s (i + 1i32) (acc + conv (sm'.char_code (sm::index s i)))
+
+///> rust
+:# the_page_style_keeps_its_exact_bytes =
+    (sm::length (style ()) : i32, code_sum (style ()) 0i32 0i64) |> _assert_eq (728i32, 56008i64)
