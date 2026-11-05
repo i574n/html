@@ -1,0 +1,10 @@
+packageDir: ../deps/spiral/lib
+packages:
+    |core-
+    spiral-
+    ../html_model-
+link:
+    ../html_model-
+modules:
+    table
+    unit

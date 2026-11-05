@@ -4,6 +4,6 @@ Renders a repository as HTML pages: a directory tree with sizes, the top README,
 
 ```powershell
 pwsh scripts/init.ps1    # links deps/spiral to a sibling spiral checkout, cloning it when missing
-pwsh build.ps1           # Cells tests over src/*.spi, Spiral -> cli/html.rs -> dist/html, then its --self-test
+pwsh build.ps1           # Cells tests over the html_* unit notebooks, Spiral -> 8 linked crates -> dist/html, then its --self-test
 dist/html --dir <folder> --html <folder>/index.html [--viewers]
 ```

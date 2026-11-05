@@ -2,6 +2,18 @@ packageDir: ../deps/spiral/lib
 packages:
     |core-
     spiral-
-    ../src-
+    ../html_model-
+    ../html_inline-
+    ../html_table-
+    ../html_parse-
+    ../html_render-
+    ../html_pages-
+link:
+    ../html_model-
+    ../html_inline-
+    ../html_table-
+    ../html_parse-
+    ../html_render-
+    ../html_pages-
 modules:
     entry

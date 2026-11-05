@@ -2,32 +2,35 @@
 :# tree static =
     :< testing
 
+:< markup
+:< doc_render
 :< model
 :< render
 :< file_views
 :< sm'_operators
 
-:~ ^ pad2 (n : i64) : string = ? n < 10i64 ?> "0" ++# show_i64 n |: show_i64 n
+:~ pad2 (n : i64) : string = ? n < 10i64 ?> "0" ++# show_i64 n |: show_i64 n
 
-:~ ^ hundredths (bytes : i64) (scale : i64) : string =
+:~ hundredths (bytes : i64) (scale : i64) : string =
     := n = (bytes * 100i64 + scale / 2i64) / scale
     show_i64 (n / 100i64) ++# "." ++# pad2 (n % 100i64)
 
-:~ ^ size_label (bytes : i64) : string =
+:~ bytes_label (bytes : i64) : string =
     ? bytes > 1048576i64 ?> hundredths bytes 1048576i64 ++# " MB"
     |? bytes > 1024i64 ?> hundredths bytes 1024i64 ++# " KB"
     |: hundredths bytes 1i64 ++# " B"
 
 :~ ^ node_bytes (n : node) : i64 =
     ?= n ?|
-    | File (_, _, bytes) => bytes
-    | Folder (_, _, children) => nodes_bytes children
+    | File f => f::bytes
+    | Folder f => nodes_bytes f::children
 :& :~ nodes_bytes (ns : list node) : i64 =
     ?= ns ?|
     | n :: rest => node_bytes n + nodes_bytes rest
     | [] => 0i64
 
-:~ char_order (a : string) (b : string) (i : i32) : i32 = ? sm'.char_code (sm::index a i) < sm'.char_code (sm::index b i) ?> -1i32 |: 1i32
+:~ char_order (a : string) (b : string) (i : i32) : i32 =
+    ? sm'.char_code (sm::index a i) < sm'.char_code (sm::index b i) ?> -1i32 |: 1i32
 
 :~ ^ compare_from (a : string) (b : string) (i : i32) : i32 =
     ? i = sm::length a && i = sm::length b ?> 0i32
@@ -36,34 +39,40 @@
     |? sm::index a i = sm::index b i ?> compare_from a b (i + 1i32)
     |: char_order a b i
 
-:~ ^ folder_rank (n : node) : i32 =
+:~ folder_rank (n : node) : i32 =
     ?= n ?|
     | Folder _ => 0i32
     | File _ => 1i32
 
-:~ ^ node_name (n : node) : string =
+:~ node_name (n : node) : string =
     ?= n ?|
-    | Folder (name, _, _) => name
-    | File (name, _, _) => name
+    | Folder f => f::name
+    | File f => f::name
 
-:~ ^ before (a : node) (b : node) : bool =
+:~ before (a : node) (b : node) : bool =
     ? folder_rank a = folder_rank b ?> compare_from (node_name a) (node_name b) 0i32 < 0i32
     |: folder_rank a < folder_rank b
 
-:~ ^ insert_node (n : node) (sorted : list node) : list node =
-    ?= sorted ?|
-    | m :: rest => ? before n m ?> n :: sorted |: m :: insert_node n rest
-    | [] => [n]
+:? listed_before t : t -> t -> bool
 
-:~ ^ sort_nodes (ns : list node) : list node =
-    ?= ns ?|
-    | n :: rest => insert_node n (sort_nodes rest)
+:+ listed_before node = \ a b => before a b
+
+:~ ^ insert_by \* t {listed_before}. (x : t) (sorted : list t) : list t =
+    ?= sorted ?|
+    | m :: rest => ? listed_before x m ?> x :: sorted |: m :: insert_by x rest
+    | [] => [x]
+
+:~ ^ sort_by \* t {listed_before}. (xs : list t) : list t =
+    ?= xs ?|
+    | x :: rest => insert_by x (sort_by rest)
     | [] => []
 
-:~ ^ join_rel (parent : string) (name : string) : string = ? parent = "" ?> name |: parent ++# "/" ++# name
+:~ sort_nodes (ns : list node) : list node = sort_by ns
 
-:~ ^ entry_link (icon : string) (href : string) (name : string) (bytes : i64) : markup =
-    trusted (icon ++# " ") ++ anchor href (escape name) ++ trusted ("<span> (" ++# size_label bytes ++# ")</span>")
+:~ join_rel (parent : string) (name : string) : string = ? parent = "" ?> name |: parent ++# "/" ++# name
+
+:~ entry_link (icon : string) (href : string) (name : string) (bytes : i64) : markup =
+    trusted (icon ++# " ") ++ anchor href (escape name) ++ trusted ("<span> (" ++# bytes_label bytes ++# ")</span>")
 
 :~ raw_link (rel : string) : markup = trusted " " ++ anchor rel (trusted "<span>raw</span>")
 
@@ -78,8 +87,8 @@
 
 :~ node_by (r : list node -> markup) (viewers : bool) (n : node) : markup =
     ?= n ?|
-    | File (name, rel, bytes) => wrap "div" (file_html viewers name rel bytes)
-    | Folder (name, rel, cs) => folder_html rel name (nodes_bytes cs) (r cs)
+    | File f => wrap "div" (file_html viewers f::name f::rel f::bytes)
+    | Folder f => folder_html f::rel f::name (nodes_bytes f::children) (r f::children)
 
 :~ ^ nodes_html (viewers : bool) (ns : list node) : markup =
     ?= ns ?|
@@ -90,33 +99,43 @@
 
 :+ to_html node = \ n => node_html !- n
 
+:~ level_file (n : i64) (rel : string) : node = File { name = "file.txt"; rel = join_rel rel "file.txt"; bytes = n + 1i64 }
+
+:~ level_folder (n : i64) (inner : string) (children : list node) : node =
+    Folder { name = digit n; rel = inner; children = children }
+
 :~ ^ level_fixture (n : i64) (rel : string) : list node =
-    := file = File ("file.txt", join_rel rel "file.txt", n + 1i64)
     := inner = join_rel rel (digit n)
-    ? n = 0i64 ?> [file] |: [Folder (digit n, inner, level_fixture (n - 1i64) inner); file]
+    ? n = 0i64 ?> [level_file n rel] |: [level_folder n inner (level_fixture (n - 1i64) inner); level_file n rel]
 
 := order_fixture () : list node =
-    [File ("b.txt", "b.txt", 1i64); File ("a.txt", "a.txt", 2i64); Folder ("m", "m", []); File ("B", "B", 0i64)]
+    := file = \ (n : string) (b : i64) => File { name = n; rel = n; bytes = b }
+    [file "b.txt" 1i64; file "a.txt" 2i64; Folder { name = "m"; rel = "m"; children = [] }; file "B" 0i64]
 
 := linked_fixture () : string =
     "<div>&#128196; <a href=\"a.spi.html\">a.spi</a><span> (5.00 B)</span> <a href=\"a.spi\"><span>raw</span></a></div>"
 
 := plain_fixture () : string = "<div>&#128196; <a href=\"c.txt\">c.txt</a><span> (1.00 B)</span></div>"
 
-:= nested_fixture () : list node = [Folder ("_.root", "_.root", level_fixture 3i64 "_.root")]
+:= nested_fixture () : list node = [Folder { name = "_.root"; rel = "_.root"; children = level_fixture 3i64 "_.root" }]
 
 := nested_a1 () : string =
     "<details open=\"true\"><summary>&#128194; <a href=\"_.root\">_.root</a><span> (10.00 B)</span></summary><div>"
 
+:= nested_a2 () : string =
+    "<details open=\"true\"><summary>&#128194; <a href=\"_.root/3\">3</a><span> (6.00 B)</span></summary><div>"
+
 := nested_a () : string =
-    nested_a1 () ++# "<details open=\"true\"><summary>&#128194; <a href=\"_.root/3\">3</a><span> (6.00 B)</span></summary><div>"
+    nested_a1 ()
+    ++# nested_a2 ()
     ++# "<details open=\"true\"><summary>&#128194; <a href=\"_.root/3/2\">2</a><span> (3.00 B)</span></summary><div>"
 
 := nested_b1 () : string =
     "<details open=\"true\"><summary>&#128194; <a href=\"_.root/3/2/1\">1</a><span> (1.00 B)</span></summary><div>"
 
 := nested_b () : string =
-    nested_b1 () ++# "<div>&#128196; <a href=\"_.root/3/2/1/file.txt\">file.txt</a><span> (1.00 B)</span></div></div></details>"
+    nested_b1 ()
+    ++# "<div>&#128196; <a href=\"_.root/3/2/1/file.txt\">file.txt</a><span> (1.00 B)</span></div></div></details>"
     ++# "<div>&#128196; <a href=\"_.root/3/2/file.txt\">file.txt</a><span> (2.00 B)</span></div></div></details>"
 
 := nested_c () : string =
@@ -125,7 +144,7 @@
 
 ///> rust
 :# size_labels_switch_units_past_each_power =
-    listm.map size_label [1024i64; 1025i64; 1048576i64; 1048577i64; 0i64]
+    listm.map bytes_label [1024i64; 1025i64; 1048576i64; 1048577i64; 0i64]
     |> _assert_eq ["1024.00 B"; "1.00 KB"; "1024.00 KB"; "1.00 MB"; "0.00 B"]
 
 ///> rust
@@ -141,8 +160,9 @@
 :# folder_bytes_sum_their_children =
     nodes_bytes (nested_fixture ()) |> _assert_eq 10i64
 
+:= linked_text (n : string) (b : i64) : string = node_html !+ (File { name = n; rel = n; bytes = b }) |> markup_text
+
 ///> rust
 :# a_linked_file_gets_a_viewer_page_and_a_raw_link =
-    := linked = node_html !+ (File ("a.spi", "a.spi", 5i64)) |> markup_text
-    (linked, node_html !+ (File ("c.txt", "c.txt", 1i64)) |> markup_text)
+    (linked_text "a.spi" 5i64, linked_text "c.txt" 1i64)
     |> _assert_eq (linked_fixture (), plain_fixture ())

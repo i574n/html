@@ -1,0 +1,22 @@
+:< markup
+:< doc_blocks
+:< model
+
+:= blocks_of (b : block) : list block = [ b ]
+
+:= nodes_of (n : node) : list node = [ n ]
+
+:= aligns_some (a : list align) : option (list align) = Some a
+
+:= viewer_same (v : viewer) : viewer = v
+
+:= main () : i32 =
+    export "html_model_blocks_of" blocks_of
+    export "html_model_nodes_of" nodes_of
+    export "html_model_level_of" level_of
+    export "html_model_level_tag" level_tag
+    export "html_model_escape" escape
+    export "html_model_trim" trim
+    export "html_model_aligns_some" aligns_some
+    export "html_model_viewer_same" viewer_same
+    0i32

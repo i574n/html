@@ -1,6 +1,5 @@
-:< model
-:< render
+:< pages_api
 
 := main () : i32 =
-    export "html_markdown" ((\ text => md text) : string -> string)
+    export "html_markdown" ((\ text => md_text text) : string -> string)
     0i32

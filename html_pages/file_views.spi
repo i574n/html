@@ -1,0 +1,129 @@
+///- --package . --timeout 600000
+:# file_views static =
+    :< testing
+
+:< markup
+:< doc_render
+:< model
+:< markdown
+:< render
+:< sm'_operators
+
+:~ ^ last_dot (name : string) (i : i32) (found : i32) : i32 =
+    ? i >= sm::length name ?> found
+    |? sm::index name i = '.' ?> last_dot name (i + 1i32) i
+    |: last_dot name (i + 1i32) found
+
+:~ extension (name : string) : string =
+    := dot = last_dot name 0i32 -1i32
+    ? dot <= 0i32 ?> "" |: run_of name (dot + 1i32) (sm::length name)
+
+:= code_extensions () : list string = ["spi"; "spir"; "spiproj"; "toml"; "ps1"; "psm1"; "fs"; "fsx"; "fsproj"]
+
+:= script_extensions () : list string = ["rs"; "gleam"; "ex"; "exs"; "zig"; "c"; "h"; "cpp"; "cs"; "py"; "sh"]
+
+:= data_extensions () : list string = ["cmd"; "bat"; "lock"; "cfg"; "ini"; "sql"; "csv"; "dib"; "livemd"]
+
+:= picture_extensions () : list string = ["png"; "svg"; "jpg"; "jpeg"; "gif"; "webp"]
+
+:= source_extensions () : list string =
+    listm.append (code_extensions ()) (listm.append (script_extensions ()) (data_extensions ()))
+
+:~ ^ listed (ext : string) (exts : list string) : bool =
+    ?= exts ?|
+    | e :: rest => e = ext || listed ext rest
+    | [] => !-
+
+:~ by_extension (ext : string) : viewer = ? ext = "tsv" ?> Delimited |? ext = "md" ?> Prose |? ext = "mmd" ?> Diagram |: Direct
+
+:~ viewer_of (name : string) : viewer =
+    := ext = extension name
+    ? listed ext (picture_extensions ()) ?> Picture |? listed ext (source_extensions ()) ?> Source |: by_extension ext
+
+:~ has_viewer (name : string) : bool =
+    ?= viewer_of name ?|
+    | Direct => !-
+    | _ => !+
+
+:~ cell_of (tag : string) (s : string) (start : i32) (i : i32) : markup = wrap tag (escape (run_of s start i))
+
+:~ ^ tab_cells (tag : string) (s : string) (i : i32) (start : i32) : markup =
+    ? i >= sm::length s ?> cell_of tag s start i
+    |? sm::index s i = '\t' ?> cell_of tag s start i ++ tab_cells tag s (i + 1i32) (i + 1i32)
+    |: tab_cells tag s (i + 1i32) start
+
+:~ ^ tab_rows (lines : list string) (tag : string) : markup =
+    ?= lines ?|
+    | s :: rest =>
+        ? s = "" ?> tab_rows rest tag
+        |: trusted "<tr>" ++ tab_cells tag s 0i32 0i32 ++ trusted "</tr>\n" ++ tab_rows rest "td"
+    | [] => trusted ""
+
+:= source_view (text : string) : markup = trusted "<pre><code>" ++ escape text ++ trusted "</code></pre>\n"
+
+:= table_view (text : string) : markup =
+    trusted "<table>\n" ++ tab_rows (lines_from text 0i32 0i32 []) "th" ++ trusted "</table>\n"
+
+:= prose_view (prose : string -> markup) (text : string) : markup =
+    trusted "<section class=\"readme\">\n" ++ prose text ++ trusted "</section>\n"
+
+:= picture_view (name : string) : markup =
+    := img = trusted ("<img" ++# attributes [ "src", name; "alt", name; "style", "max-width:100%" ] ++# ">")
+    element "p" [] (element "a" [ "href", name ] img) ++ trusted "\n"
+
+:= mermaid_import () : string = "import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'; "
+
+:= mermaid_start () : string = "mermaid.initialize({ startOnLoad: true, maxEdges: 5000, maxTextSize: 2000000 });"
+
+:= mermaid_script () : markup =
+    element "script" [ "type", "module" ] (trusted (mermaid_import () ++# mermaid_start ())) ++ trusted "\n"
+
+:= diagram_view (text : string) : markup = element "pre" [ "class", "mermaid" ] (escape text) ++ trusted "\n" ++ mermaid_script ()
+
+:= media_body (kind : viewer) (name : string) (text : string) : markup =
+    ?= kind ?|
+    | Picture => picture_view name
+    | Diagram => diagram_view text
+    | _ => trusted ""
+
+:= viewer_body (prose : string -> markup) (kind : viewer) (name : string) (text : string) : markup =
+    ?= kind ?|
+    | Source => source_view text
+    | Delimited => table_view text
+    | Prose => prose_view prose text
+    | _ => media_body kind name text
+
+///> rust
+:# extensions_pick_the_viewer =
+    listm::map viewer_of ["a.spi"; "b.tsv"; "c.md"; "d.txt"; ".spi"; "Cargo.lock"; "e.png"; "f.mmd"]
+    |> _assert_eq [Source; Delimited; Prose; Direct; Direct; Source; Picture; Diagram]
+
+///> rust
+:# a_source_file_is_escaped_into_pre_code =
+    viewer_body markdown_html Source "x" "x < 1" |> markup_text |> _assert_eq "<pre><code>x &lt; 1</code></pre>\n"
+
+///> rust
+:# a_tsv_file_becomes_a_table_with_a_header_row =
+    viewer_body markdown_html Delimited "x" "h1\th2\n\nv1\tv2" |> markup_text
+    |> _assert_eq "<table>\n<tr><th>h1</th><th>h2</th></tr>\n<tr><td>v1</td><td>v2</td></tr>\n</table>\n"
+
+///> rust
+:# a_markdown_file_renders_as_a_readme_section =
+    viewer_body markdown_html Prose "x" "# T" |> markup_text
+    |> _assert_eq "<section class=\"readme\">\n<h1>T</h1>\n</section>\n"
+
+///> rust
+:# a_picture_is_shown_inline_and_links_to_the_full_size =
+    viewer_body markdown_html Picture "a&b.png" "" |> markup_text
+    |> _assert_eq "<p><a href=\"a&amp;b.png\"><img src=\"a&amp;b.png\" alt=\"a&amp;b.png\" style=\"max-width:100%\"></a></p>\n"
+
+///> rust
+:# a_mermaid_diagram_is_escaped_into_its_pre =
+    viewer_body markdown_html Diagram "d.mmd" "a --> b" |> markup_text
+    |> sm'.starts_with "<pre class=\"mermaid\">a --&gt; b</pre>\n<script type=\"module\">"
+    |> _assert_eq !+
+
+///> rust
+:# mermaid_loads_with_limits_raised_for_large_graphs =
+    (sm'.contains "maxEdges: 5000" (mermaid_start ()), sm'.contains "maxTextSize: 2000000" (mermaid_start ()))
+    |> _assert_eq (!+, !+)

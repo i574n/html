@@ -1,0 +1,12 @@
+[package]
+name = "html_model"
+version = "0.0.1"
+edition = "2024"
+
+[package.metadata.spiral]
+entry = "unit.spi"
+output = "model.rs"
+
+[lib]
+name = "html_model"
+path = "model.rs"

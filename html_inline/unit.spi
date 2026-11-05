@@ -1,0 +1,5 @@
+:< inline_parse
+
+:= main () : i32 =
+    export "html_inline_parse" parse_inline
+    0i32

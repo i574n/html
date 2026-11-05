@@ -1,0 +1,16 @@
+packageDir: ../deps/spiral/lib
+packages:
+    |core-
+    spiral-
+    ../html_model-
+    ../html_inline-
+    ../html_table-
+    ../html_parse-
+link:
+    ../html_model-
+    ../html_inline-
+    ../html_table-
+    ../html_parse-
+modules:
+    render
+    unit

@@ -1,0 +1,108 @@
+///- --package . --timeout 600000
+:# render static =
+    :< testing
+
+:< markup
+:< doc_blocks
+:< doc_render
+:< model
+:< inline_parse
+:< markdown
+:< sm'_operators
+
+:? to_html t : t -> markup
+:+ to_html inline = \ x => inline_html x
+:+ to_html block = \ b => block_html b
+
+:~ markdown_html (s : string) : markup = blocks_html (parse_markdown s)
+
+:~ md (s : string) : string = markdown_html s |> markup_text
+
+:= inline_fixture () : string =
+    "a&amp;<code>&lt;</code><strong>b</strong><a href=\"x.html\">l</a>"
+    ++# "<a href=\"https://x.org\">https://x.org</a>"
+
+///> rust
+///> gleam
+:# every_inline_constructor_renders =
+    inlines_html [Text "a&"; Code "<"; Strong [Text "b"]; Link ("l", "x.html"); AutoLink "https://x.org"] |> markup_text
+    |> _assert_eq (inline_fixture ())
+
+///> rust
+///> gleam
+:# images_and_badges_render =
+    inlines_html [Image ("logo", "logo.png"); LinkedImage ("CI", "b.svg", "ci.html")] |> markup_text
+    |> _assert_eq "<img src=\"logo.png\" alt=\"logo\"><a href=\"ci.html\"><img src=\"b.svg\" alt=\"CI\"></a>"
+
+///> rust
+///> gleam
+:# the_prototype_dispatches_per_type =
+    (to_html (Code "c") |> markup_text, to_html Rule |> markup_text) |> _assert_eq ("<code>c</code>", "<hr>\n")
+
+///> rust
+///> gleam
+:# headings_and_paragraphs =
+    md "# Title\n\nSome `code` and [a link](x.html)."
+    |> _assert_eq "<h1>Title</h1>\n<p>Some <code>code</code> and <a href=\"x.html\">a link</a>.</p>\n"
+
+///> rust
+///> gleam
+:# bullets_escape_and_close =
+    md "- one\n- two <b>" |> _assert_eq "<ul>\n<li>one</li>\n<li>two &lt;b&gt;</li>\n</ul>\n"
+
+///> rust
+///> gleam
+:# non_ascii_text_passes_through =
+    md "봉쥬르 & é [깃허브](k.html)" |> _assert_eq "<p>봉쥬르 &amp; é <a href=\"k.html\">깃허브</a></p>\n"
+
+///> rust
+///> gleam
+:# ordered_lists_with_and_without_a_start =
+    (md "1. a", md "3. three\n   wrapped\n4. four")
+    |> _assert_eq ("<ol>\n<li>a</li>\n</ol>\n", "<ol start=\"3\">\n<li>three wrapped</li>\n<li>four</li>\n</ol>\n")
+
+///> rust
+///> gleam
+:# code_and_rule =
+    md "```\nlet x = 1 < 2\n```\n\n---" |> _assert_eq "<pre><code>let x = 1 &lt; 2\n</code></pre>\n<hr>\n"
+
+:= table_md () : string = "| A | B |\n| :- | -: |\n| `x` | y \\| z |"
+
+:= table_head () : string =
+    "<table>\n<thead>\n<tr><th style=\"text-align: left\">A</th>"
+    ++# "<th style=\"text-align: right\">B</th></tr>\n</thead>\n"
+
+:= table_body () : string =
+    "<tbody>\n<tr><td style=\"text-align: left\"><code>x</code></td>"
+    ++# "<td style=\"text-align: right\">y | z</td></tr>\n</tbody>\n</table>\n"
+
+///> rust
+///> gleam
+:# a_gfm_table_renders_alignment_and_escaped_pipes =
+    md (table_md ()) |> _assert_eq (table_head () ++# table_body ())
+
+:= readme_md_head () : string =
+    "# Title\n\nSome `code` and [a link](x.html).\n\n- one\n- two <b>\n\n봉쥬르 & é [깃허브](k.html)\n\n"
+    ++# "Hi! ![logo](logo.png) [![CI](b.svg)](ci.html)\n\n**Bold** and <https://x.org> and \\*star\\*\n\n"
+
+:= readme_md () : string =
+    readme_md_head () ++# "---\n\n- top\n  - nested\n\n```\nlet x = 1 < 2\n```\n\n" ++# table_md () ++# "\n\n"
+    ++# "3. three\n   wrapped\n4. four\n- lazy\nmore\n"
+
+:= readme_a () : string =
+    "<h1>Title</h1>\n<p>Some <code>code</code> and <a href=\"x.html\">a link</a>.</p>\n"
+    ++# "<ul>\n<li>one</li>\n<li>two &lt;b&gt;</li>\n</ul>\n<p>봉쥬르 &amp; é <a href=\"k.html\">깃허브</a></p>\n"
+
+:= readme_b () : string =
+    "<p>Hi! <img src=\"logo.png\" alt=\"logo\"> <a href=\"ci.html\"><img src=\"b.svg\" alt=\"CI\"></a></p>\n"
+    ++# "<p><strong>Bold</strong> and <a href=\"https://x.org\">https://x.org</a> and *star*</p>\n<hr>\n<ul>\n"
+
+:= readme_c () : string =
+    "<li>top</li>\n<li>nested</li>\n</ul>\n<pre><code>let x = 1 &lt; 2\n</code></pre>\n"
+    ++# table_head () ++# table_body ()
+    ++# "<ol start=\"3\">\n<li>three wrapped</li>\n<li>four</li>\n</ol>\n<ul>\n<li>lazy more</li>\n</ul>\n"
+
+///> rust
+///> gleam
+:# the_dir_tree_html_readme_fixture_renders_byte_for_byte =
+    md (readme_md ()) |> _assert_eq (readme_a () ++# readme_b () ++# readme_c ())

@@ -11,3 +11,11 @@ output = "entry.rs"
 [lib]
 name = "html_markdown"
 path = "entry.rs"
+
+[dependencies]
+html_model = { path = "../html_model" }
+html_parse = { path = "../html_parse" }
+html_inline = { path = "../html_inline" }
+html_table = { path = "../html_table" }
+html_pages = { path = "../html_pages" }
+html_render = { path = "../html_render" }

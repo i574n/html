@@ -2,6 +2,8 @@
 :# pages static =
     :< testing
 
+:< markup
+:< doc_render
 :< model
 :< render
 :< file_views
@@ -79,28 +81,30 @@
     """
 
 := style () : string =
-    style_1 () ++# "\n" ++# style_2 () ++# "\n" ++# style_3 () ++# "\n" ++# style_4 () ++# "\n" ++# style_5 () ++# "\n" ++# style_6 ()
+    style_1 () ++# "\n" ++# style_2 () ++# "\n" ++# style_3 ()
+    ++# "\n" ++# style_4 () ++# "\n" ++# style_5 () ++# "\n" ++# style_6 ()
 
-:= meta_html () : string = "  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+:= meta_html () : string =
+    "  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
 
-:~ ^ head_html () : markup =
+:~ head_html () : markup =
     trusted ("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n" ++# meta_html () ++# "  <style>\n" ++# style ())
     ++ trusted "\n  </style>\n</head>\n<body>\n  <div>"
 
-:~ ^ close_html (readme : markup) : markup = trusted "</div>\n" ++ readme ++ trusted "</body>\n</html>\n"
+:~ close_html (readme : markup) : markup = trusted "</div>\n" ++ readme ++ trusted "</body>\n</html>\n"
 
-:~ ^ readme_section (rendered : option markup) : markup =
+:~ readme_section (rendered : option markup) : markup =
     ?= rendered ?|
     | Some body => trusted "<section class=\"readme\">\n" ++ body ++ trusted "</section>\n"
     | None => trusted ""
 
-:~ ^ index_page_of (viewers : bool) (nodes : list node) (readme : option markup) : page index_page =
+:~ index_page_of (viewers : bool) (nodes : list node) (readme : option markup) : page index_page =
     IndexPage (head_html () ++ nodes_html viewers nodes ++ close_html (readme_section readme))
 
 :~ title_html (name : string) : markup = trusted "<p>" ++ anchor name (escape name) ++ trusted " <span>raw</span></p>\n"
 
 := file_page_of (prose : string -> markup) (name : string) (kind : viewer) (text : string) : page file_page =
-    FilePage (head_html () ++ title_html name ++ viewer_body prose kind text ++ close_html (trusted ""))
+    FilePage (head_html () ++ title_html name ++ viewer_body prose kind name text ++ close_html (trusted ""))
 
 ///> rust
 :# the_head_matches_dir_tree_html =

@@ -1,9 +1,6 @@
+:< markup
 :< model
-:< render
-:< markdown
-:< file_views
-:< tree
-:< pages
+:< pages_api
 :< sm'_operators
 :< file_system_operators
 
@@ -14,55 +11,70 @@
     | SelfTest
     | BadArgs : string
 
+:| listing =
+    | Listed : list string
+    | Unreadable : string
+
 :| outcome =
     | Wrote : i32
     | Mismatch : string
     | Refused : string
 
-:~ ^ markdown_markup (text : string) : markup = trusted ($'html_markdown::html_markdown(&*!text)' : string)
+:~ present (path : string) : bool = file_system.file_exists path
 
-:~ ^ present (path : string) : bool = file_system.file_exists path
+:~ is_directory (path : string) : bool = file_system.directory_exists path
 
-:~ ^ is_dir (path : string) : bool = file_system.directory_exists path
+:~ is_link (path : string) : bool = file_system.rust_is_symlink path
 
-:~ ^ is_link (path : string) : bool = file_system.rust_is_symlink path
+:~ bytes_of (path : string) : i64 = file_system.rust_file_length path
 
-:~ ^ bytes_of (path : string) : i64 = file_system.rust_file_length path
+:~ put (path : string) (text : string) : () = file_system.write_all_text path text
 
-:~ ^ put (path : string) (text : string) : () = file_system.write_all_text path text
+:~ drop_final_newline (s : string) : string = ? sm'.ends_with "\n" s ?> run_of s 0i32 (sm::length s - 1i32) |: s
 
-:~ ^ drop_final_newline (s : string) : string = ? sm'.ends_with "\n" s ?> run_of s 0i32 (sm::length s - 1i32) |: s
+:~ read_lossy (path : string) : string = $'std::rc::Rc::<str>::from(String::from_utf8_lossy(&std::fs::read(&*!path).unwrap()).as_ref())' : string
 
-:~ ^ slurp (path : string) : string = file_system.read_all_text path |> sm'.replace "\r\n" "\n" |> drop_final_newline
+:~ slurp (path : string) : string = read_lossy path |> sm'.replace "\r\n" "\n" |> drop_final_newline
 
-:~ ^ names_of (path : string) : list string =
+:~ names_of (path : string) : listing =
     ?= file_system.read_dir_names path |> resultm.unbox ?|
-    | Ok names => names |> am'.vec_fold' (\ rest name => sm'.from_std_string name :: rest) []
-    | Error _ => []
+    | Ok names => Listed (names |> am'.vec_fold' (\ rest name => sm'.from_std_string name :: rest) [])
+    | Error e => Unreadable (sm'.format_debug e)
+
+:~ unreadable_text (path : string) (why : string) : string = "html: cannot read " ++# path ++# ": " ++# why
+
+:~ folder_of (d : string -> string -> list node) (c : string) (rel : string) (n : string) : node =
+    Folder { name = n; rel = rel; children = d c rel }
+
+:~ file_of (c : string) (rel : string) (n : string) : node = File { name = n; rel = rel; bytes = bytes_of c }
 
 :~ node_at (d : string -> string -> list node) (c : string) (rel : string) (n : string) (a : list node) : list node =
-    ? is_link c ?> a
-    |? is_dir c ?> Folder (n, rel, d c rel) :: a
-    |? present c ?> File (n, rel, bytes_of c) :: a
-    |: a
+    ? is_link c ?> a |? is_directory c ?> folder_of d c rel n :: a |? present c ?> file_of c rel n :: a |: a
 
-:~ ^ nodes_of (d : string -> string -> list node) (path : string) (rel : string) (ns : list string) (a : list node) : list node =
+:~ ^ nodes_of (d : string -> string -> list node) (path : string) (rel : string) (ns : list string) (a : list node)
+    : list node
+    =
     ?= ns ?|
     | [] => a
-    | n :: rest => nodes_of d path rel rest (node_at d (path </> n) (join_rel rel n) n a)
+    | n :: rest => nodes_of d path rel rest (node_at d (path </> n) (rel_joined (rel, n)) n a)
 
-:~ ^ walk (path : string) (rel : string) : list node = sort_nodes (nodes_of walk path rel (names_of path) [])
+:~ ^ walk (path : string) (rel : string) : list node =
+    ?= names_of path ?|
+    | Listed ns => sorted (nodes_of walk path rel ns [])
+    | Unreadable why =>
+        console.write_error_line (unreadable_text path why)
+        []
 
-:~ ^ readme_of (dir : string) : option markup =
+:~ readme_of (dir : string) : bool * string =
     := path = dir </> "README.md"
-    ? present path ?> Some (markdown_markup (slurp path)) |: None
+    ? present path ?> !+, slurp path |: !-, ""
 
 :~ put_page (path : string) (name : string) (kind : viewer) : i32 =
-    put (path ++# ".html") (page_text (file_page_of markdown_markup name kind (slurp path)))
+    put (path ++# ".html") (file_text (name, kind, slurp path))
     1i32
 
 :~ write_file_page (path : string) (name : string) : i32 =
-    := kind = viewer_of name
+    := kind = viewer_named name
     ?= kind ?|
     | Direct => 0i32
     | _ => ? present (path ++# ".html") ?> 0i32 |: put_page path name kind
@@ -72,34 +84,75 @@
 :~ ^ write_file_pages (dir : string) (ns : list node) (k : i32) : i32 =
     ?= ns ?|
     | [] => k
-    | File (n, r, _) :: xs => write_file_pages dir xs (k + page_at dir r n)
-    | Folder (_, _, cs) :: xs => write_file_pages dir xs (write_file_pages dir cs k)
+    | File f :: xs => write_file_pages dir xs (k + page_at dir f::rel f::name)
+    | Folder f :: xs => write_file_pages dir xs (write_file_pages dir f::children k)
 
-:~ ^ render_tree (o : options) (viewers : bool) : outcome =
+:~ write_index (o : options) (viewers : bool) (ns : list node) : () =
+    := has_readme, readme = readme_of o::dir
+    put o::html (index_text (viewers, ns, has_readme, readme))
+
+:~ render_listed (o : options) (viewers : bool) : outcome =
     := ns = walk o::dir ""
     := pages = ? viewers ?> write_file_pages o::dir ns 0i32 |: 0i32
-    put o::html (page_text (index_page_of viewers ns (readme_of o::dir)))
+    write_index o viewers ns
     Wrote pages
 
-:~ ^ fixture_dir () : string =
+:~ render_tree (o : options) (viewers : bool) : outcome =
+    ?= names_of o::dir ?|
+    | Unreadable why => Refused (unreadable_text o::dir why)
+    | Listed _ => render_listed o viewers
+
+:~ fixture_directory () : string =
     file_system.get_temp_path () </> ("html-self-test-" ++# (guid.new_raw_guid () |> guid.to_string))
 
-:~ ^ make_dir (path : string) : () = $'std::fs::create_dir_all(&*!path).unwrap()' : ()
+:~ make_directory (path : string) : () = $'std::fs::create_dir_all(&*!path).unwrap()' : ()
 
 :~ ^ times (s : string) (n : i64) : string = ? n <= 0i64 ?> "" |: s ++# times s (n - 1i64)
 
 :~ ^ lay (dir : string) (n : i64) : () =
     ? n >= 0i64 ?>
-        make_dir dir
-        put (dir </> "file.txt") (times (digit n) (n + 1i64))
-        lay (dir </> digit n) (n - 1i64)
+        make_directory dir
+        put (dir </> "file.txt") (times (digit_text n) (n + 1i64))
+        lay (dir </> digit_text n) (n - 1i64)
 
-:~ ^ self_test () : outcome =
-    := dir = fixture_dir ()
+:~ viewer_fixture () : string =
+    := dir = fixture_directory ()
+    make_directory dir
+    put (dir </> "a.spi") "x < 1"
+    put (dir </> "a.spi.html") "kept"
+    put (dir </> "b.tsv") "h1\th2\nv1\tv2"
+    put (dir </> "c.txt") "t"
+    dir
+
+:~ viewers_kept (dir : string) : bool =
+    := wrote = write_file_pages dir (walk dir "") 0i32
+    wrote = 1i32 && present (dir </> "b.tsv.html")
+    && slurp (dir </> "a.spi.html") = "kept" && not (present (dir </> "c.txt.html"))
+
+:~ missing_refused () : bool =
+    := dir = fixture_directory ()
+    ?= render_tree { dir = dir; html = dir ++# ".html" } !- ?|
+    | Refused _ => not (present (dir ++# ".html"))
+    | _ => !-
+
+:~ tree_check () : option string =
+    := dir = fixture_directory ()
     lay (dir </> "_.root") 3i64
-    := got = walk dir "" |> nodes_html !- |> markup_text
-    := want = nested_a () ++# nested_b () ++# nested_c ()
-    ? got = want ?> Wrote 0i32 |: Mismatch got
+    := got = tree_html (!-, walk dir "")
+    ? got <> fixture_text () ?> Some got |: None
+
+:~ fixture_failure () : option string =
+    ? viewers_kept (viewer_fixture ()) |> not ?> Some "viewers: want b.tsv.html, a.spi.html kept, no c.txt.html"
+    |? missing_refused () |> not ?> Some "walk: an unreadable folder must be refused"
+    |: None
+
+:~ self_test () : outcome =
+    ?= tree_check () ?|
+    | Some got => Mismatch got
+    | None =>
+        ?= fixture_failure () ?|
+        | Some why => Mismatch why
+        | None => Wrote 0i32
 
 :~ render_mode (args : list string) : mode =
     ?= (cli_args.parse_operands args : result options cli_args.cli_error) ?|
@@ -108,7 +161,7 @@
 
 :~ mode_of (args : list string) : mode = ? cli_args.has_switch "self-test" args ?> SelfTest |: render_mode args
 
-:~ ^ exit_of (o : outcome) : i32 =
+:~ exit_of (o : outcome) : i32 =
     ?= o ?|
     | Wrote _ => 0i32
     | Mismatch got =>
@@ -118,7 +171,7 @@
         console.write_error_line why
         2i32
 
-:~ ^ run (m : mode) : outcome =
+:~ run (m : mode) : outcome =
     ?= m ?|
     | Render (o, viewers) => render_tree o viewers
     | SelfTest => self_test ()

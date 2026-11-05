@@ -1,0 +1,6 @@
+:< table
+
+:= main () : i32 =
+    export "html_table_row_cells" row_cells
+    export "html_table_aligns_of" aligns_of
+    0i32
