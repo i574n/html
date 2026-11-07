@@ -1,0 +1,23 @@
+///- --package . --timeout 600000
+:# walk_api static =
+    :< testing
+
+:< model
+:< sm'_operators
+:< file_system_operators
+:< walk
+
+:= walked (dir : string) : list node = walk dir ""
+
+:= readme (dir : string) : bool * string = readme_of dir
+
+:= refusal (path : string) : string = refusal_of path
+
+:= slurped (path : string) : string = slurp path
+
+///> rust
+:# a_lowercase_readme_renders_and_a_missing_folder_is_refused =
+    := dir = file_system.get_temp_path () </> ("html-walk-test-" ++# (guid.new_raw_guid () |> guid.to_string))
+    $'std::fs::create_dir_all(&*!dir).unwrap()' : ()
+    file_system.write_all_text (dir </> "readme.md") "# lower\r\n"
+    (readme dir, refusal dir, refusal (dir </> "missing") <> "") |> _assert_eq ((!+, "# lower"), "", !+)

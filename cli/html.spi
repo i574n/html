@@ -1,6 +1,7 @@
 :< markup
 :< model
 :< pages_api
+:< walk_api
 :< sm'_operators
 :< file_system_operators
 
@@ -11,10 +12,6 @@
     | SelfTest
     | BadArgs : string
 
-:| listing =
-    | Listed : list string
-    | Unreadable : string
-
 :| outcome =
     | Wrote : i32
     | Mismatch : string
@@ -22,55 +19,10 @@
 
 :~ present (path : string) : bool = file_system.file_exists path
 
-:~ is_directory (path : string) : bool = file_system.directory_exists path
-
-:~ is_link (path : string) : bool = file_system.rust_is_symlink path
-
-:~ bytes_of (path : string) : i64 = file_system.rust_file_length path
-
 :~ put (path : string) (text : string) : () = file_system.write_all_text path text
 
-:~ drop_final_newline (s : string) : string = ? sm'.ends_with "\n" s ?> run_of s 0i32 (sm::length s - 1i32) |: s
-
-:~ read_lossy (path : string) : string = $'std::rc::Rc::<str>::from(String::from_utf8_lossy(&std::fs::read(&*!path).unwrap()).as_ref())' : string
-
-:~ slurp (path : string) : string = read_lossy path |> sm'.replace "\r\n" "\n" |> drop_final_newline
-
-:~ names_of (path : string) : listing =
-    ?= file_system.read_dir_names path |> resultm.unbox ?|
-    | Ok names => Listed (names |> am'.vec_fold' (\ rest name => sm'.from_std_string name :: rest) [])
-    | Error e => Unreadable (sm'.format_debug e)
-
-:~ unreadable_text (path : string) (why : string) : string = "html: cannot read " ++# path ++# ": " ++# why
-
-:~ folder_of (d : string -> string -> list node) (c : string) (rel : string) (n : string) : node =
-    Folder { name = n; rel = rel; children = d c rel }
-
-:~ file_of (c : string) (rel : string) (n : string) : node = File { name = n; rel = rel; bytes = bytes_of c }
-
-:~ node_at (d : string -> string -> list node) (c : string) (rel : string) (n : string) (a : list node) : list node =
-    ? is_link c ?> a |? is_directory c ?> folder_of d c rel n :: a |? present c ?> file_of c rel n :: a |: a
-
-:~ ^ nodes_of (d : string -> string -> list node) (path : string) (rel : string) (ns : list string) (a : list node)
-    : list node
-    =
-    ?= ns ?|
-    | [] => a
-    | n :: rest => nodes_of d path rel rest (node_at d (path </> n) (rel_joined (rel, n)) n a)
-
-:~ ^ walk (path : string) (rel : string) : list node =
-    ?= names_of path ?|
-    | Listed ns => sorted (nodes_of walk path rel ns [])
-    | Unreadable why =>
-        console.write_error_line (unreadable_text path why)
-        []
-
-:~ readme_of (dir : string) : bool * string =
-    := path = dir </> "README.md"
-    ? present path ?> !+, slurp path |: !-, ""
-
 :~ put_page (path : string) (name : string) (kind : viewer) : i32 =
-    put (path ++# ".html") (file_text (name, kind, slurp path))
+    put (path ++# ".html") (file_text (name, kind, slurped path))
     1i32
 
 :~ write_file_page (path : string) (name : string) : i32 =
@@ -88,19 +40,18 @@
     | Folder f :: xs => write_file_pages dir xs (write_file_pages dir f::children k)
 
 :~ write_index (o : options) (viewers : bool) (ns : list node) : () =
-    := has_readme, readme = readme_of o::dir
-    put o::html (index_text (viewers, ns, has_readme, readme))
+    := has_readme, text = readme o::dir
+    put o::html (index_text (viewers, ns, has_readme, text))
 
 :~ render_listed (o : options) (viewers : bool) : outcome =
-    := ns = walk o::dir ""
+    := ns = walked o::dir
     := pages = ? viewers ?> write_file_pages o::dir ns 0i32 |: 0i32
     write_index o viewers ns
     Wrote pages
 
 :~ render_tree (o : options) (viewers : bool) : outcome =
-    ?= names_of o::dir ?|
-    | Unreadable why => Refused (unreadable_text o::dir why)
-    | Listed _ => render_listed o viewers
+    := why = refusal o::dir
+    ? why = "" ?> render_listed o viewers |: Refused why
 
 :~ fixture_directory () : string =
     file_system.get_temp_path () </> ("html-self-test-" ++# (guid.new_raw_guid () |> guid.to_string))
@@ -125,9 +76,9 @@
     dir
 
 :~ viewers_kept (dir : string) : bool =
-    := wrote = write_file_pages dir (walk dir "") 0i32
+    := wrote = write_file_pages dir (walked dir) 0i32
     wrote = 1i32 && present (dir </> "b.tsv.html")
-    && slurp (dir </> "a.spi.html") = "kept" && not (present (dir </> "c.txt.html"))
+    && slurped (dir </> "a.spi.html") = "kept" && not (present (dir </> "c.txt.html"))
 
 :~ missing_refused () : bool =
     := dir = fixture_directory ()
@@ -138,7 +89,7 @@
 :~ tree_check () : option string =
     := dir = fixture_directory ()
     lay (dir </> "_.root") 3i64
-    := got = tree_html (!-, walk dir "")
+    := got = tree_html (!-, walked dir)
     ? got <> fixture_text () ?> Some got |: None
 
 :~ fixture_failure () : option string =

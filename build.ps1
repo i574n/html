@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 . deps/spiral/scripts/core.ps1
 . deps/spiral/lib/spiral/lib.ps1
 
-$units = 'html_model', 'html_inline', 'html_table', 'html_parse', 'html_render', 'html_pages'
+$units = 'html_model', 'html_inline', 'html_table', 'html_parse', 'html_render', 'html_pages', 'html_walk'
 $notebooks = @($units | ForEach-Object { Get-ChildItem $_ -Filter *.spi } | Where-Object Name -ne 'unit.spi' | ForEach-Object { '--path'; $_.FullName })
 if (!$fast) {
     $env:SPIRAL_CELLS_MEMO = '0'

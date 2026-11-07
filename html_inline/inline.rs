@@ -18,10 +18,10 @@ enum US0 {
 }
 fn rev_inlines_2(mut v0: Rc<list_inline>, mut v1: Rc<list_inline>) -> Rc<list_inline> {
     loop {
-        match &*v0 {
+        match Rc::unwrap_or_clone(v0) {
             list_inline::list_inline_Cons(v2, v3) => {
-                let mut v2: Rc<inline> = v2.clone();
-                let v3: Rc<list_inline> = v3.clone();
+                let mut v2: Rc<inline> = v2;
+                let v3: Rc<list_inline> = v3;
                 let v4: Rc<list_inline> = Rc::new(list_inline::list_inline_Cons(v2, v1));
                 (v0, v1) = (v3, v4);
                 continue;
@@ -554,13 +554,13 @@ fn piece_3(mut v0: Rc<dyn Fn(Rc<str>) -> Rc<list_inline>>, mut v1: Rc<str>, mut 
     let v3: US0 = marked_8(v0, v1.clone(), v2);
     let v4: Rc<dyn Fn() -> US0> = closure5(v1.clone(), v2);
     let v5: US0 = or_else_9(v4, v3);
-    match &v5 {
+    match v5 {
         US0::US0_None => {
             plain_piece_4(v1, v2)
         }
         US0::US0_Some(v6, v7) => {
-            let v6: i32 = *v6;
-            let v7: Rc<inline> = v7.clone();
+            let v6: i32 = v6;
+            let v7: Rc<inline> = v7;
             (v6, v7)
         }
     }

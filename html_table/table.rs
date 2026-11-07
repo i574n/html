@@ -13,10 +13,10 @@ fn string_slice(value: &str, from: i64, to: i64) -> Rc<str> {
 }
 fn method2(mut v0: Rc<list_string>, mut v1: Rc<list_string>) -> Rc<list_string> {
     loop {
-        match &*v0 {
+        match Rc::unwrap_or_clone(v0) {
             list_string::list_string_Cons(v2, v3) => {
-                let v2: Rc<str> = v2.clone();
-                let v3: Rc<list_string> = v3.clone();
+                let v2: Rc<str> = v2;
+                let v3: Rc<list_string> = v3;
                 let v4: Rc<list_string> = Rc::new(list_string::list_string_Cons(v2, v1));
                 (v0, v1) = (v3, v4);
                 continue;
@@ -191,10 +191,10 @@ fn align_of_9(mut v0: Rc<str>) -> align {
     }
 }
 fn method8(mut v0: Rc<list_string>, mut v1: Rc<list_align>) -> Rc<list_align> {
-    match &*v0 {
+    match Rc::unwrap_or_clone(v0) {
         list_string::list_string_Cons(v2, v3) => {
-            let v2: Rc<str> = v2.clone();
-            let v3: Rc<list_string> = v3.clone();
+            let v2: Rc<str> = v2;
+            let v3: Rc<list_string> = v3;
             let v4: Rc<list_align> = method8(v3, v1);
             let v5: align = align_of_9(v2);
             Rc::new(list_align::list_align_Cons(v5, v4))

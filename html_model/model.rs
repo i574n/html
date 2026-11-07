@@ -106,6 +106,8 @@ pub enum viewer {
     viewer_Source,
     viewer_Delimited,
     viewer_Prose,
+    viewer_Picture,
+    viewer_Diagram,
 }
 impl level {
     pub fn tag(&self) -> i32 {
@@ -249,6 +251,8 @@ impl viewer {
             viewer::viewer_Source => 1,
             viewer::viewer_Delimited => 2,
             viewer::viewer_Prose => 3,
+            viewer::viewer_Picture => 4,
+            viewer::viewer_Diagram => 5,
         }
     }
 }
@@ -386,32 +390,17 @@ fn closure2() -> Rc<dyn Fn(i32) -> option_level> {
     }); } CLOSURE.with(|closure| closure.clone())
 }
 fn level_tag_0(mut v0: level) -> Rc<str> {
-    match &v0 {
-        level::level_H1 => {
-            let mut v1: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("h1"); } LIT.with(|lit| lit.clone()) };
-            v1
-        }
-        level::level_H2 => {
-            let v2: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("h2"); } LIT.with(|lit| lit.clone()) };
-            v2
-        }
-        level::level_H3 => {
-            let v3: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("h3"); } LIT.with(|lit| lit.clone()) };
-            v3
-        }
-        level::level_H4 => {
-            let v4: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("h4"); } LIT.with(|lit| lit.clone()) };
-            v4
-        }
-        level::level_H5 => {
-            let v5: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("h5"); } LIT.with(|lit| lit.clone()) };
-            v5
-        }
-        level::level_H6 => {
-            let v6: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("h6"); } LIT.with(|lit| lit.clone()) };
-            v6
-        }
-    }
+    let mut v1: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("H1"); } LIT.with(|lit| lit.clone()) };
+    let v2: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("H2"); } LIT.with(|lit| lit.clone()) };
+    let v3: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("H3"); } LIT.with(|lit| lit.clone()) };
+    let v4: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("H4"); } LIT.with(|lit| lit.clone()) };
+    let v5: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("H5"); } LIT.with(|lit| lit.clone()) };
+    let v6: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("H6"); } LIT.with(|lit| lit.clone()) };
+    let v7: Rc<RefCell<Vec<Rc<str>>>> = Rc::new(RefCell::new(vec![v1, v2, v3, v4, v5, v6]));
+    let v8: i32 = (v0.tag() as i32);
+    let v9: Rc<str> = v7.borrow()[v8 as usize].clone();
+    let v10: Rc<str> = Rc::<str>::from(v9.to_lowercase());
+    v10
 }
 fn closure3() -> Rc<dyn Fn(level) -> Rc<str>> {
     thread_local!{ static CLOSURE: Rc<dyn Fn(level) -> Rc<str>> = Rc::new(move |mut v0: level| -> Rc<str> {
@@ -466,7 +455,8 @@ fn escape_step_4(mut v0: Rc<str>, mut v1: i32, mut v2: i32, mut v3: Rc<str>) -> 
     } else {
         let v7: i32 = v1.wrapping_add(1i32);
         let v8: Rc<str> = run_of_3(v0, v2, v1);
-        let v10: Rc<str> = Rc::<str>::from(format!("{}{}", Rc::<str>::from(format!("{}{}", v3, v8)), v5));
+        let v9: Rc<str> = Rc::<str>::from(format!("{}{}", v3, v8));
+        let v10: Rc<str> = Rc::<str>::from(format!("{}{}", v9, v5));
         (v7, v10)
     }
 }
