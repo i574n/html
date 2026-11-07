@@ -1,0 +1,6 @@
+:< render
+
+:= main () : i32 =
+    export "html_render_markdown" markdown_html
+    export "html_render_md" md
+    0i32

@@ -1,0 +1,131 @@
+:< markup
+:< model
+:< pages_api
+:< walk_api
+:< sm'_operators
+:< file_system_operators
+
+:== options = { dir : string; html : string }
+
+:| mode =
+    | Render : options * bool
+    | SelfTest
+    | BadArgs : string
+
+:| outcome =
+    | Wrote : i32
+    | Mismatch : string
+    | Refused : string
+
+:~ present (path : string) : bool = file_system.file_exists path
+
+:~ put (path : string) (text : string) : () = file_system.write_all_text path text
+
+:~ put_page (path : string) (name : string) (kind : viewer) : i32 =
+    put (path ++# ".html") (file_text (name, kind, slurped path))
+    1i32
+
+:~ write_file_page (path : string) (name : string) : i32 =
+    := kind = viewer_named name
+    ?= kind ?|
+    | Direct => 0i32
+    | _ => ? present (path ++# ".html") ?> 0i32 |: put_page path name kind
+
+:~ page_at (dir : string) (rel : string) (name : string) : i32 = write_file_page (dir </> rel) name
+
+:~ ^ write_file_pages (dir : string) (ns : list node) (k : i32) : i32 =
+    ?= ns ?|
+    | [] => k
+    | File f :: xs => write_file_pages dir xs (k + page_at dir f::rel f::name)
+    | Folder f :: xs => write_file_pages dir xs (write_file_pages dir f::children k)
+
+:~ write_index (o : options) (viewers : bool) (ns : list node) : () =
+    := has_readme, text = readme o::dir
+    put o::html (index_text (viewers, ns, has_readme, text))
+
+:~ render_listed (o : options) (viewers : bool) : outcome =
+    := ns = walked o::dir
+    := pages = ? viewers ?> write_file_pages o::dir ns 0i32 |: 0i32
+    write_index o viewers ns
+    Wrote pages
+
+:~ render_tree (o : options) (viewers : bool) : outcome =
+    := why = refusal o::dir
+    ? why = "" ?> render_listed o viewers |: Refused why
+
+:~ fixture_directory () : string =
+    file_system.get_temp_path () </> ("html-self-test-" ++# (guid.new_raw_guid () |> guid.to_string))
+
+:~ make_directory (path : string) : () = $'std::fs::create_dir_all(&*!path).unwrap()' : ()
+
+:~ ^ times (s : string) (n : i64) : string = ? n <= 0i64 ?> "" |: s ++# times s (n - 1i64)
+
+:~ ^ lay (dir : string) (n : i64) : () =
+    ? n >= 0i64 ?>
+        make_directory dir
+        put (dir </> "file.txt") (times (digit_text n) (n + 1i64))
+        lay (dir </> digit_text n) (n - 1i64)
+
+:~ viewer_fixture () : string =
+    := dir = fixture_directory ()
+    make_directory dir
+    put (dir </> "a.spi") "x < 1"
+    put (dir </> "a.spi.html") "kept"
+    put (dir </> "b.tsv") "h1\th2\nv1\tv2"
+    put (dir </> "c.txt") "t"
+    dir
+
+:~ viewers_kept (dir : string) : bool =
+    := wrote = write_file_pages dir (walked dir) 0i32
+    wrote = 1i32 && present (dir </> "b.tsv.html")
+    && slurped (dir </> "a.spi.html") = "kept" && not (present (dir </> "c.txt.html"))
+
+:~ missing_refused () : bool =
+    := dir = fixture_directory ()
+    ?= render_tree { dir = dir; html = dir ++# ".html" } !- ?|
+    | Refused _ => not (present (dir ++# ".html"))
+    | _ => !-
+
+:~ tree_check () : option string =
+    := dir = fixture_directory ()
+    lay (dir </> "_.root") 3i64
+    := got = tree_html (!-, walked dir)
+    ? got <> fixture_text () ?> Some got |: None
+
+:~ fixture_failure () : option string =
+    ? viewers_kept (viewer_fixture ()) |> not ?> Some "viewers: want b.tsv.html, a.spi.html kept, no c.txt.html"
+    |? missing_refused () |> not ?> Some "walk: an unreadable folder must be refused"
+    |: None
+
+:~ self_test () : outcome =
+    ?= tree_check () ?|
+    | Some got => Mismatch got
+    | None =>
+        ?= fixture_failure () ?|
+        | Some why => Mismatch why
+        | None => Wrote 0i32
+
+:~ render_mode (args : list string) : mode =
+    ?= (cli_args.parse_operands args : result options cli_args.cli_error) ?|
+    | Ok o => Render (o, cli_args.has_switch "viewers" args)
+    | Error e => BadArgs (cli_args.cli_error_text e)
+
+:~ mode_of (args : list string) : mode = ? cli_args.has_switch "self-test" args ?> SelfTest |: render_mode args
+
+:~ exit_of (o : outcome) : i32 =
+    ?= o ?|
+    | Wrote _ => 0i32
+    | Mismatch got =>
+        console.write_error_line ("html self-test mismatch: " ++# got)
+        1i32
+    | Refused why =>
+        console.write_error_line why
+        2i32
+
+:~ run (m : mode) : outcome =
+    ?= m ?|
+    | Render (o, viewers) => render_tree o viewers
+    | SelfTest => self_test ()
+    | BadArgs why => Refused why
+
+:= main () : i32 = env.command_line_arguments () |> mode_of |> run |> exit_of

@@ -1,0 +1,22 @@
+[package]
+name = "html"
+version = "0.0.1"
+edition = "2024"
+repository = "https://github.com/i574n/html"
+
+[package.metadata.spiral]
+entry = "html.spi"
+output = "html.rs"
+
+[[bin]]
+name = "html"
+path = "html.rs"
+[dependencies]
+html_markdown = { path = "../markdown" }
+html_model = { path = "../html_model" }
+html_parse = { path = "../html_parse" }
+html_inline = { path = "../html_inline" }
+html_table = { path = "../html_table" }
+html_pages = { path = "../html_pages" }
+html_render = { path = "../html_render" }
+html_walk = { path = "../html_walk" }

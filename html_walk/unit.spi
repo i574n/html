@@ -1,0 +1,8 @@
+:< walk_api
+
+:= main () : i32 =
+    export "html_walk_walked" walked
+    export "html_walk_readme" readme
+    export "html_walk_refusal" refusal
+    export "html_walk_slurped" slurped
+    0i32

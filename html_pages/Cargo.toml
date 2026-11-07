@@ -1,0 +1,19 @@
+[package]
+name = "html_pages"
+version = "0.0.1"
+edition = "2024"
+
+[package.metadata.spiral]
+entry = "unit.spi"
+output = "pages.rs"
+
+[lib]
+name = "html_pages"
+path = "pages.rs"
+
+[dependencies]
+html_model = { path = "../html_model" }
+html_inline = { path = "../html_inline" }
+html_table = { path = "../html_table" }
+html_parse = { path = "../html_parse" }
+html_render = { path = "../html_render" }

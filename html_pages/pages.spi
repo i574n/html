@@ -1,0 +1,135 @@
+///- --package . --timeout 600000
+:# pages static =
+    :< testing
+
+:< markup
+:< doc_render
+:< model
+:< render
+:< file_views
+:< tree
+:< sm'_operators
+
+:= style_1 () : string = """
+    html {
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+    body {
+        background-color: #222;
+        color: #ccc;
+        margin: 8px;
+    """
+
+:= style_2 () : string = """
+        line-height: 1.6;
+        overflow-wrap: anywhere;
+    }
+    a {
+      color: #777;
+      font-size: 15px;
+    }
+    span {
+      font-size: 11px;
+    }
+    div > div {
+    """
+
+:= style_3 () : string = """
+      padding-left: 10px;
+    }
+    details > div {
+      padding-left: 19px;
+    }
+    .readme {
+      border-top: 1px solid #444;
+      margin-top: 16px;
+      padding-top: 8px;
+    """
+
+:= style_4 () : string = """
+      max-width: 900px;
+    }
+    .readme a {
+      color: #9ab;
+    }
+    .readme pre {
+      background-color: #1a1a1a;
+      padding: 8px;
+      overflow-x: auto;
+    }
+    """
+
+:= style_5 () : string = """
+    @media (max-width: 600px) {
+      a {
+        font-size: 16px;
+      }
+      span {
+        font-size: 12px;
+      }
+      div > div {
+        padding-left: 4px;
+      }
+    """
+
+:= style_6 () : string = """
+      details > div {
+        padding-left: 10px;
+      }
+    }
+    """
+
+:= style () : string =
+    style_1 () ++# "\n" ++# style_2 () ++# "\n" ++# style_3 ()
+    ++# "\n" ++# style_4 () ++# "\n" ++# style_5 () ++# "\n" ++# style_6 ()
+
+:= meta_html () : string =
+    "  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+
+:~ head_html () : markup =
+    trusted ("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n" ++# meta_html () ++# "  <style>\n" ++# style ())
+    ++ trusted "\n  </style>\n</head>\n<body>\n  <div>"
+
+:~ close_html (readme : markup) : markup = trusted "</div>\n" ++ readme ++ trusted "</body>\n</html>\n"
+
+:~ readme_section (rendered : option markup) : markup =
+    ?= rendered ?|
+    | Some body => trusted "<section class=\"readme\">\n" ++ body ++ trusted "</section>\n"
+    | None => trusted ""
+
+:~ index_page_of (viewers : bool) (nodes : list node) (readme : option markup) : page index_page =
+    IndexPage (head_html () ++ nodes_html viewers nodes ++ close_html (readme_section readme))
+
+:~ title_html (name : string) : markup = trusted "<p>" ++ anchor name (escape name) ++ trusted " <span>raw</span></p>\n"
+
+:= file_page_of (prose : string -> markup) (name : string) (kind : viewer) (text : string) : page file_page =
+    FilePage (head_html () ++ title_html name ++ viewer_body prose kind name text ++ close_html (trusted ""))
+
+///> rust
+:# the_head_matches_dir_tree_html =
+    head_html () |> markup_text |> sm'.ends_with "  }\n}\n  </style>\n</head>\n<body>\n  <div>" |> _assert_eq !+
+
+///> rust
+:# close_wraps_the_readme_before_the_body_end =
+    close_html (trusted "<p>r</p>\n") |> markup_text |> _assert_eq "</div>\n<p>r</p>\n</body>\n</html>\n"
+
+///> rust
+:# an_index_page_without_a_readme =
+    index_page_of !- [] None |> page_text |> _assert_eq (markup_text (head_html ()) ++# "</div>\n</body>\n</html>\n")
+
+:= file_page_fixture () : string =
+    "<p><a href=\"a.spi\">a.spi</a> <span>raw</span></p>\n"
+    ++# "<pre><code>x &lt; 1</code></pre>\n</div>\n</body>\n</html>\n"
+
+///> rust
+:# a_file_page_links_back_to_the_raw_file =
+    file_page_of markdown_html "a.spi" Source "x < 1" |> page_text
+    |> _assert_eq (markup_text (head_html ()) ++# file_page_fixture ())
+
+:~ ^ code_sum (s : string) (i : i32) (acc : i64) : i64 =
+    ? i >= sm::length s ?> acc |: code_sum s (i + 1i32) (acc + conv (sm'.char_code (sm::index s i)))
+
+///> rust
+:# the_page_style_keeps_its_exact_bytes =
+    (sm::length (style ()) : i32, code_sum (style ()) 0i32 0i64) |> _assert_eq (728i32, 56008i64)

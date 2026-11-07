@@ -1,0 +1,13 @@
+:< pages_api
+
+:= main () : i32 =
+    export "html_pages_viewer" viewer_named
+    export "html_pages_sorted" sorted
+    export "html_pages_rel" rel_joined
+    export "html_pages_tree" tree_html
+    export "html_pages_index" index_text
+    export "html_pages_file" file_text
+    export "html_pages_fixture" fixture_text
+    export "html_pages_digit" digit_text
+    export "html_pages_md" md_text
+    0i32

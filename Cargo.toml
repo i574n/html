@@ -1,0 +1,14 @@
+cargo-features = ["profile-rustflags"]
+
+[workspace]
+resolver = "3"
+members = ["cli", "markdown", "html_model", "html_inline", "html_table", "html_parse", "html_render", "html_pages", "html_walk"]
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true
+rustflags = ["-C", "link-arg=-s"]
