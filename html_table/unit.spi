@@ -1,4 +1,4 @@
-:< table
+:< doc_table
 
 := main () : i32 =
     export "html_table_row_cells" row_cells

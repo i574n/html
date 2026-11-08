@@ -5,7 +5,7 @@
 :< markup
 :< doc_render
 :< model
-:< markdown
+:< doc_parse
 :< render
 :< sm'_operators
 

@@ -2,6 +2,16 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use html_model::{list_string, node, list_node};
+fn string_concat(parts: &[&str]) -> Rc<str> {
+    let mut joined = Rc::<[u8]>::new_uninit_slice(parts.iter().map(|part| part.len()).sum());
+    let bytes = Rc::get_mut(&mut joined).unwrap().as_mut_ptr() as *mut u8;
+    let mut at = 0;
+    for part in parts {
+        unsafe { std::ptr::copy_nonoverlapping(part.as_ptr(), bytes.add(at), part.len()) };
+        at += part.len();
+    }
+    unsafe { Rc::from_raw(Rc::into_raw(joined.assume_init()) as *const str) }
+}
 fn string_slice(value: &str, from: i64, to: i64) -> Rc<str> {
     let bytes = value.as_bytes();
     let length = bytes.len() as i64;
@@ -119,7 +129,7 @@ fn folder_of_11(mut v0: Rc<dyn Fn(Rc<str>) -> Rc<dyn Fn(Rc<str>) -> Rc<list_node
     let v5: Rc<list_node> = v4(v2.clone());
     Rc::new(node::node_Folder(v3, v2, v5))
 }
-fn file_exists_13(mut v0: Rc<str>) -> bool {
+fn file_exists_12(mut v0: Rc<str>) -> bool {
     let v2: &str = &*v0;
     let mut v4: std::string::String = String::from(v2);
     let mut v6: std::path::PathBuf = std::path::PathBuf::from(v4);
@@ -131,10 +141,7 @@ fn file_exists_13(mut v0: Rc<str>) -> bool {
         false
     }
 }
-fn present_12(mut v0: Rc<str>) -> bool {
-    file_exists_13(v0)
-}
-fn bytes_of_15(mut v0: Rc<str>) -> i64 {
+fn bytes_of_14(mut v0: Rc<str>) -> i64 {
     let mut v1: std::io::Result<std::fs::Metadata> = std::fs::metadata(&*v0);
     let v2: bool = v1.is_ok();
     let mut v3: bool = v2 == false;
@@ -147,8 +154,8 @@ fn bytes_of_15(mut v0: Rc<str>) -> i64 {
         v6
     }
 }
-fn file_of_14(mut v0: Rc<str>, mut v1: Rc<str>, mut v2: Rc<str>) -> Rc<node> {
-    let mut v3: i64 = bytes_of_15(v0);
+fn file_of_13(mut v0: Rc<str>, mut v1: Rc<str>, mut v2: Rc<str>) -> Rc<node> {
+    let mut v3: i64 = bytes_of_14(v0);
     Rc::new(node::node_File(v2, v1, v3))
 }
 fn node_at_7(mut v0: Rc<dyn Fn(Rc<str>) -> Rc<dyn Fn(Rc<str>) -> Rc<list_node>>>, mut v1: Rc<str>, mut v2: Rc<str>, mut v3: Rc<str>, mut v4: Rc<list_node>) -> Rc<list_node> {
@@ -161,9 +168,9 @@ fn node_at_7(mut v0: Rc<dyn Fn(Rc<str>) -> Rc<dyn Fn(Rc<str>) -> Rc<list_node>>>
             let mut v7: Rc<node> = folder_of_11(v0, v1, v2, v3);
             Rc::new(list_node::list_node_Cons(v7, v4))
         } else {
-            let v9: bool = present_12(v1.clone());
+            let v9: bool = file_exists_12(v1.clone());
             if v9 {
-                let v10: Rc<node> = file_of_14(v1, v2, v3);
+                let v10: Rc<node> = file_of_13(v1, v2, v3);
                 Rc::new(list_node::list_node_Cons(v10, v4))
             } else {
                 v4
@@ -189,10 +196,8 @@ fn nodes_of_4(mut v0: Rc<dyn Fn(Rc<str>) -> Rc<dyn Fn(Rc<str>) -> Rc<list_node>>
         }
     }
 }
-fn unreadable_text_16(mut v0: Rc<str>, mut v1: Rc<str>) -> Rc<str> {
-    let v2: Rc<str> = Rc::<str>::from(format!("{}{}", { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("html: cannot read "); } LIT.with(|lit| lit.clone()) }, v0));
-    let mut v3: Rc<str> = Rc::<str>::from(format!("{}{}", v2, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(": "); } LIT.with(|lit| lit.clone()) }));
-    let mut v4: Rc<str> = Rc::<str>::from(format!("{}{}", v3, v1));
+fn unreadable_text_15(mut v0: Rc<str>, mut v1: Rc<str>) -> Rc<str> {
+    let mut v4: Rc<str> = string_concat(&["html: cannot read ", &*v0, ": ", &*v1]);
     v4
 }
 fn walk_0(mut v0: Rc<str>, mut v1: Rc<str>) -> Rc<list_node> {
@@ -208,7 +213,7 @@ fn walk_0(mut v0: Rc<str>, mut v1: Rc<str>) -> Rc<list_node> {
         }
         US0::US0_Unreadable(v8) => {
             let v8: Rc<str> = v8;
-            let v9: Rc<str> = unreadable_text_16(v0, v8);
+            let v9: Rc<str> = unreadable_text_15(v0, v8);
             eprintln!("{}", v9);
             { thread_local!{ static CASE: Rc<list_node> = Rc::new(list_node::list_node_Nil); } CASE.with(|case| case.clone()) }
         }
@@ -220,7 +225,7 @@ fn closure0() -> Rc<dyn Fn(Rc<str>) -> Rc<list_node>> {
         walk_0(v0, v1)
     }); } CLOSURE.with(|closure| closure.clone())
 }
-fn run_of_21(mut v0: Rc<str>, mut v1: i32, mut v2: i32) -> Rc<str> {
+fn run_of_20(mut v0: Rc<str>, mut v1: i32, mut v2: i32) -> Rc<str> {
     let mut v3: bool = v2 <= v1;
     if v3 {
         let mut v4: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(""); } LIT.with(|lit| lit.clone()) };
@@ -231,30 +236,30 @@ fn run_of_21(mut v0: Rc<str>, mut v1: i32, mut v2: i32) -> Rc<str> {
         v6
     }
 }
-fn drop_final_newline_20(mut v0: Rc<str>) -> Rc<str> {
+fn drop_final_newline_19(mut v0: Rc<str>) -> Rc<str> {
     let mut v1: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("\n"); } LIT.with(|lit| lit.clone()) };
     let v2: bool = v0.ends_with(&*v1);
     if v2 {
         let mut v3: i32 = 0i32;
         let mut v4: i32 = (v0.clone().len() as i32);
         let v5: i32 = v4.wrapping_sub(1i32);
-        run_of_21(v0, v3, v5)
+        run_of_20(v0, v3, v5)
     } else {
         v0
     }
 }
-fn read_lossy_22(mut v0: Rc<str>) -> Rc<str> {
+fn read_lossy_21(mut v0: Rc<str>) -> Rc<str> {
     let mut v1: Rc<str> = std::rc::Rc::<str>::from(String::from_utf8_lossy(&std::fs::read(&*v0).unwrap()).as_ref());
     v1
 }
-fn slurp_19(mut v0: Rc<str>) -> Rc<str> {
-    let mut v1: Rc<str> = read_lossy_22(v0);
+fn slurp_18(mut v0: Rc<str>) -> Rc<str> {
+    let mut v1: Rc<str> = read_lossy_21(v0);
     let v2: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("\r\n"); } LIT.with(|lit| lit.clone()) };
     let mut v3: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("\n"); } LIT.with(|lit| lit.clone()) };
     let mut v4: Rc<str> = Rc::<str>::from(v1.replace(&*v2, &*v3));
-    drop_final_newline_20(v4)
+    drop_final_newline_19(v4)
 }
-fn readme_in_18(mut v0: Rc<str>, mut v1: Rc<list_string>) -> (bool, Rc<str>) {
+fn readme_in_17(mut v0: Rc<str>, mut v1: Rc<list_string>) -> (bool, Rc<str>) {
     loop {
         match Rc::unwrap_or_clone(v1) {
             list_string::list_string_Cons(v3, v4) => {
@@ -264,7 +269,7 @@ fn readme_in_18(mut v0: Rc<str>, mut v1: Rc<list_string>) -> (bool, Rc<str>) {
                 let mut v6: bool = &*v5 == "readme.md";
                 if v6 {
                     let mut v7: Rc<str> = method5(v0, v3);
-                    let v8: Rc<str> = slurp_19(v7);
+                    let v8: Rc<str> = slurp_18(v7);
                     return (true, v8);
                 } else {
                     v1 = v4;
@@ -278,21 +283,21 @@ fn readme_in_18(mut v0: Rc<str>, mut v1: Rc<list_string>) -> (bool, Rc<str>) {
         }
     }
 }
-fn readme_of_17(mut v0: Rc<str>) -> (bool, Rc<str>) {
+fn readme_of_16(mut v0: Rc<str>) -> (bool, Rc<str>) {
     let mut v1: US0 = names_of_1(v0.clone());
     match v1 {
         US0::US0_Listed(v2) => {
             let v2: Rc<list_string> = v2;
             let mut v3: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("README.md"); } LIT.with(|lit| lit.clone()) };
             let mut v4: Rc<str> = method5(v0.clone(), v3.clone());
-            let v5: bool = present_12(v4);
+            let v5: bool = file_exists_12(v4);
             let v8: Rc<list_string> = if v5 {
                 let mut v6: Rc<list_string> = { thread_local!{ static CASE: Rc<list_string> = Rc::new(list_string::list_string_Nil); } CASE.with(|case| case.clone()) };
                 Rc::new(list_string::list_string_Cons(v3, v6))
             } else {
                 v2
             };
-            readme_in_18(v0, v8)
+            readme_in_17(v0, v8)
         }
         US0::US0_Unreadable(v11) => {
             let v11: Rc<str> = v11;
@@ -303,10 +308,10 @@ fn readme_of_17(mut v0: Rc<str>) -> (bool, Rc<str>) {
 }
 fn closure5() -> Rc<dyn Fn(Rc<str>) -> (bool, Rc<str>)> {
     thread_local!{ static CLOSURE: Rc<dyn Fn(Rc<str>) -> (bool, Rc<str>)> = Rc::new(move |mut v0: Rc<str>| -> (bool, Rc<str>) {
-        readme_of_17(v0)
+        readme_of_16(v0)
     }); } CLOSURE.with(|closure| closure.clone())
 }
-fn refusal_of_23(mut v0: Rc<str>) -> Rc<str> {
+fn refusal_of_22(mut v0: Rc<str>) -> Rc<str> {
     let mut v1: US0 = names_of_1(v0.clone());
     match v1 {
         US0::US0_Listed(v2) => {
@@ -316,18 +321,18 @@ fn refusal_of_23(mut v0: Rc<str>) -> Rc<str> {
         }
         US0::US0_Unreadable(v4) => {
             let mut v4: Rc<str> = v4;
-            unreadable_text_16(v0, v4)
+            unreadable_text_15(v0, v4)
         }
     }
 }
 fn closure6() -> Rc<dyn Fn(Rc<str>) -> Rc<str>> {
     thread_local!{ static CLOSURE: Rc<dyn Fn(Rc<str>) -> Rc<str>> = Rc::new(move |mut v0: Rc<str>| -> Rc<str> {
-        refusal_of_23(v0)
+        refusal_of_22(v0)
     }); } CLOSURE.with(|closure| closure.clone())
 }
 fn closure7() -> Rc<dyn Fn(Rc<str>) -> Rc<str>> {
     thread_local!{ static CLOSURE: Rc<dyn Fn(Rc<str>) -> Rc<str>> = Rc::new(move |mut v0: Rc<str>| -> Rc<str> {
-        slurp_19(v0)
+        slurp_18(v0)
     }); } CLOSURE.with(|closure| closure.clone())
 }
 pub fn html_walk_walked(v0: &str) -> Rc<list_node> {

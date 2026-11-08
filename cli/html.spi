@@ -17,8 +17,6 @@
     | Mismatch : string
     | Refused : string
 
-:~ present (path : string) : bool = file_system.file_exists path
-
 :~ put (path : string) (text : string) : () = file_system.write_all_text path text
 
 :~ put_page (path : string) (name : string) (kind : viewer) : i32 =
@@ -29,7 +27,7 @@
     := kind = viewer_named name
     ?= kind ?|
     | Direct => 0i32
-    | _ => ? present (path ++# ".html") ?> 0i32 |: put_page path name kind
+    | _ => ? file_system.file_exists (path ++# ".html") ?> 0i32 |: put_page path name kind
 
 :~ page_at (dir : string) (rel : string) (name : string) : i32 = write_file_page (dir </> rel) name
 
@@ -77,13 +75,13 @@
 
 :~ viewers_kept (dir : string) : bool =
     := wrote = write_file_pages dir (walked dir) 0i32
-    wrote = 1i32 && present (dir </> "b.tsv.html")
-    && slurped (dir </> "a.spi.html") = "kept" && not (present (dir </> "c.txt.html"))
+    wrote = 1i32 && file_system.file_exists (dir </> "b.tsv.html")
+    && slurped (dir </> "a.spi.html") = "kept" && not (file_system.file_exists (dir </> "c.txt.html"))
 
 :~ missing_refused () : bool =
     := dir = fixture_directory ()
     ?= render_tree { dir = dir; html = dir ++# ".html" } !- ?|
-    | Refused _ => not (present (dir ++# ".html"))
+    | Refused _ => not (file_system.file_exists (dir ++# ".html"))
     | _ => !-
 
 :~ tree_check () : option string =

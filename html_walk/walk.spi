@@ -12,8 +12,6 @@
     | Listed : list string
     | Unreadable : string
 
-:~ present (path : string) : bool = file_system.file_exists path
-
 :~ is_directory (path : string) : bool = file_system.directory_exists path
 
 :~ is_link (path : string) : bool = file_system.rust_is_symlink path
@@ -39,7 +37,10 @@
 :~ file_of (c : string) (rel : string) (n : string) : node = File { name = n; rel = rel; bytes = bytes_of c }
 
 :~ node_at (d : string -> string -> list node) (c : string) (rel : string) (n : string) (a : list node) : list node =
-    ? is_link c ?> a |? is_directory c ?> folder_of d c rel n :: a |? present c ?> file_of c rel n :: a |: a
+    ? is_link c ?> a
+    |? is_directory c ?> folder_of d c rel n :: a
+    |? file_system.file_exists c ?> file_of c rel n :: a
+    |: a
 
 :~ ^ nodes_of (d : string -> string -> list node) (path : string) (rel : string) (ns : list string) (a : list node)
     : list node
@@ -62,7 +63,7 @@
 
 :~ readme_of (dir : string) : bool * string =
     ?= names_of dir ?|
-    | Listed ns => readme_in dir (? present (dir </> "README.md") ?> ["README.md"] |: ns)
+    | Listed ns => readme_in dir (? file_system.file_exists (dir </> "README.md") ?> ["README.md"] |: ns)
     | Unreadable _ => !-, ""
 
 :~ refusal_of (path : string) : string =

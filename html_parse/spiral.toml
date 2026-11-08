@@ -1,8 +1,6 @@
-edition = 3
 packageDir = '../deps/spiral/lib'
 packages = ['|core-', 'spiral-', '../html_model-', '../html_inline-', '../html_table-']
 link = ['../html_model-', '../html_inline-', '../html_table-']
 modules = '''
-markdown
 unit
 '''

@@ -10,6 +10,16 @@ fn string_slice(value: &str, from: i64, to: i64) -> Rc<str> {
     let slice = &bytes[from as usize..(to + 1) as usize];
     match std::str::from_utf8(slice) { Ok(text) => Rc::<str>::from(text), Err(error) => Rc::<str>::from(std::str::from_utf8(&slice[..error.valid_up_to()]).unwrap_or("")) }
 }
+fn string_concat(parts: &[&str]) -> Rc<str> {
+    let mut joined = Rc::<[u8]>::new_uninit_slice(parts.iter().map(|part| part.len()).sum());
+    let bytes = Rc::get_mut(&mut joined).unwrap().as_mut_ptr() as *mut u8;
+    let mut at = 0;
+    for part in parts {
+        unsafe { std::ptr::copy_nonoverlapping(part.as_ptr(), bytes.add(at), part.len()) };
+        at += part.len();
+    }
+    unsafe { Rc::from_raw(Rc::into_raw(joined.assume_init()) as *const str) }
+}
 #[derive(Clone)]
 pub enum level {
     level_H1,
@@ -67,7 +77,7 @@ pub enum block {
     block_Paragraph(Rc<list_inline>),
     block_Bullets(Rc<list_list_inline>),
     block_Numbered(i64, Rc<list_list_inline>),
-    block_CodeBlock(Rc<list_string>),
+    block_CodeBlock(Rc<str>, Rc<list_string>),
     block_Rule,
     block_Table(Rc<list_align>, Rc<list_list_inline>, Rc<list_list_list_inline>),
 }
@@ -455,8 +465,7 @@ fn escape_step_4(mut v0: Rc<str>, mut v1: i32, mut v2: i32, mut v3: Rc<str>) -> 
     } else {
         let v7: i32 = v1.wrapping_add(1i32);
         let v8: Rc<str> = run_of_3(v0, v2, v1);
-        let v9: Rc<str> = Rc::<str>::from(format!("{}{}", v3, v8));
-        let v10: Rc<str> = Rc::<str>::from(format!("{}{}", v9, v5));
+        let v10: Rc<str> = string_concat(&[&*v3, &*v8, &*v5]);
         (v7, v10)
     }
 }
@@ -466,7 +475,7 @@ fn escape_from_2(mut v0: Rc<str>, mut v1: i32, mut v2: i32, mut v3: Rc<str>) -> 
         let v5: bool = v1 >= v4;
         if v5 {
             let v6: Rc<str> = run_of_3(v0, v2, v1);
-            let v7: Rc<str> = Rc::<str>::from(format!("{}{}", v3, v6));
+            let v7: Rc<str> = string_concat(&[&*v3, &*v6]);
             return v7;
         } else {
             let (mut v8, mut v9): (i32, Rc<str>) = escape_step_4(v0.clone(), v1, v2, v3);

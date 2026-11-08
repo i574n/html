@@ -11,7 +11,7 @@ $units = 'html_model', 'html_inline', 'html_table', 'html_parse', 'html_render',
 $notebooks = @($units | ForEach-Object { Get-ChildItem $_ -Filter *.spi } | Where-Object Name -ne 'unit.spi' | ForEach-Object { '--path'; $_.FullName })
 if (!$fast) {
     $env:SPIRAL_CELLS_MEMO = '0'
-    Push-Location (Join-Path 'deps' 'spiral' 'apps' 'cells')
+    Push-Location ($env:SPIRAL_CELLS_ROOT ? $env:SPIRAL_CELLS_ROOT : (Join-Path 'deps' 'spiral' 'apps' 'cells'))
     try { $cells = @(& pwsh -NoProfile -File (Join-Path 'spi' 'run_notebook.ps1') --gate @notebooks 2>&1 | ForEach-Object { "$_" }); $cellsExit = $LASTEXITCODE }
     finally { Pop-Location }
     $cells | ForEach-Object { Write-Output "build.ps1 / cells / $_" }
@@ -23,8 +23,8 @@ $crates = @($units | ForEach-Object { @{ Spi = "$_/unit.spi"; Rs = "$_/$($_ -rep
 foreach ($c in $crates) {
     if (!(BuildSpiral $c.Spi $c.Rs $c.Name)) { throw "RUST-FAILED $($c.Name) / compile" }
 }
-{ cargo +nightly-2026-10-18 build --release } | Invoke-Block
-$cargoTarget = (cargo +nightly-2026-10-18 metadata --format-version 1 --no-deps | ConvertFrom-Json).target_directory
+{ cargo +nightly-2026-11-05 build --release } | Invoke-Block
+$cargoTarget = (cargo +nightly-2026-11-05 metadata --format-version 1 --no-deps | ConvertFrom-Json).target_directory
 if (!$cargoTarget) { throw "RUST-FAILED html / cargo metadata found no target directory" }
 
 Remove-Item dist -Recurse -Force -ErrorAction Ignore

@@ -11,6 +11,16 @@ fn string_slice(value: &str, from: i64, to: i64) -> Rc<str> {
     let slice = &bytes[from as usize..(to + 1) as usize];
     match std::str::from_utf8(slice) { Ok(text) => Rc::<str>::from(text), Err(error) => Rc::<str>::from(std::str::from_utf8(&slice[..error.valid_up_to()]).unwrap_or("")) }
 }
+fn string_concat(parts: &[&str]) -> Rc<str> {
+    let mut joined = Rc::<[u8]>::new_uninit_slice(parts.iter().map(|part| part.len()).sum());
+    let bytes = Rc::get_mut(&mut joined).unwrap().as_mut_ptr() as *mut u8;
+    let mut at = 0;
+    for part in parts {
+        unsafe { std::ptr::copy_nonoverlapping(part.as_ptr(), bytes.add(at), part.len()) };
+        at += part.len();
+    }
+    unsafe { Rc::from_raw(Rc::into_raw(joined.assume_init()) as *const str) }
+}
 #[derive(Clone)]
 enum UH3 {
     UH3_Nil,
@@ -344,8 +354,7 @@ fn join_rel_14(mut v0: Rc<str>, mut v1: Rc<str>) -> Rc<str> {
     if v2 {
         v1
     } else {
-        let v3: Rc<str> = Rc::<str>::from(format!("{}{}", v0, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("/"); } LIT.with(|lit| lit.clone()) }));
-        let v4: Rc<str> = Rc::<str>::from(format!("{}{}", v3, v1));
+        let v4: Rc<str> = string_concat(&[&*v0, "/", &*v1]);
         v4
     }
 }
@@ -365,7 +374,7 @@ fn markup_text_17(mut v0: markup) -> Rc<str> {
 fn joined_16(mut v0: markup, mut v1: markup) -> markup {
     let mut v2: Rc<str> = markup_text_17(v0);
     let v3: Rc<str> = markup_text_17(v1);
-    let v4: Rc<str> = Rc::<str>::from(format!("{}{}", v2, v3));
+    let v4: Rc<str> = string_concat(&[&*v2, &*v3]);
     markup::markup_Markup(v4)
 }
 fn trusted_18(mut v0: Rc<str>) -> markup {
@@ -377,12 +386,9 @@ fn closure4(mut v0: bool) -> Rc<dyn Fn(Rc<list_node>) -> markup> {
     })
 }
 fn attribute_23(mut v0: Rc<str>, mut v1: Rc<str>) -> Rc<str> {
-    let mut v2: Rc<str> = Rc::<str>::from(format!("{}{}", { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(" "); } LIT.with(|lit| lit.clone()) }, v1));
-    let v3: Rc<str> = Rc::<str>::from(format!("{}{}", v2, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("=\""); } LIT.with(|lit| lit.clone()) }));
     let v4: markup = html_model::html_model_escape(&v0);
     let v5: Rc<str> = markup_text_17(v4);
-    let v6: Rc<str> = Rc::<str>::from(format!("{}{}", v3, v5));
-    let v7: Rc<str> = Rc::<str>::from(format!("{}{}", v6, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("\""); } LIT.with(|lit| lit.clone()) }));
+    let v7: Rc<str> = string_concat(&[" ", &*v1, "=\"", &*v5, "\""]);
     v7
 }
 fn attributes_22(mut v0: Rc<UH3>) -> Rc<str> {
@@ -393,7 +399,7 @@ fn attributes_22(mut v0: Rc<UH3>) -> Rc<str> {
             let v3: Rc<UH3> = v3;
             let v4: Rc<str> = attribute_23(v2, v1);
             let v5: Rc<str> = attributes_22(v3);
-            let v6: Rc<str> = Rc::<str>::from(format!("{}{}", v4, v5));
+            let v6: Rc<str> = string_concat(&[&*v4, &*v5]);
             v6
         }
         UH3::UH3_Nil => {
@@ -403,15 +409,9 @@ fn attributes_22(mut v0: Rc<UH3>) -> Rc<str> {
     }
 }
 fn element_21(mut v0: Rc<str>, mut v1: Rc<UH3>, mut v2: markup) -> markup {
-    let v3: Rc<str> = Rc::<str>::from(format!("{}{}", { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("<"); } LIT.with(|lit| lit.clone()) }, v0.clone()));
     let v4: Rc<str> = attributes_22(v1);
-    let v5: Rc<str> = Rc::<str>::from(format!("{}{}", v3, v4));
-    let v6: Rc<str> = Rc::<str>::from(format!("{}{}", v5, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(">"); } LIT.with(|lit| lit.clone()) }));
     let v7: Rc<str> = markup_text_17(v2);
-    let v8: Rc<str> = Rc::<str>::from(format!("{}{}", v6, v7));
-    let v9: Rc<str> = Rc::<str>::from(format!("{}{}", v8, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("</"); } LIT.with(|lit| lit.clone()) }));
-    let v10: Rc<str> = Rc::<str>::from(format!("{}{}", v9, v0));
-    let v11: Rc<str> = Rc::<str>::from(format!("{}{}", v10, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(">"); } LIT.with(|lit| lit.clone()) }));
+    let v11: Rc<str> = string_concat(&["<", &*v0, &*v4, ">", &*v7, "</", &*v0, ">"]);
     markup::markup_Markup(v11)
 }
 fn wrap_20(mut v0: Rc<str>, mut v1: markup) -> markup {
@@ -440,7 +440,7 @@ fn show_i64_29(mut v0: i64) -> Rc<str> {
         let v4: Rc<str> = show_i64_29(v3);
         let v5: i64 = v0.wrapping_rem(10i64);
         let v6: Rc<str> = digit_30(v5);
-        let v7: Rc<str> = Rc::<str>::from(format!("{}{}", v4, v6));
+        let v7: Rc<str> = string_concat(&[&*v4, &*v6]);
         v7
     }
 }
@@ -448,7 +448,7 @@ fn pad2_31(mut v0: i64) -> Rc<str> {
     let mut v1: bool = v0 < 10i64;
     if v1 {
         let mut v2: Rc<str> = show_i64_29(v0);
-        let v3: Rc<str> = Rc::<str>::from(format!("{}{}", { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("0"); } LIT.with(|lit| lit.clone()) }, v2));
+        let v3: Rc<str> = string_concat(&["0", &*v2]);
         v3
     } else {
         show_i64_29(v0)
@@ -461,10 +461,9 @@ fn hundredths_28(mut v0: i64, mut v1: i64) -> Rc<str> {
     let v5: i64 = v4.wrapping_div(v1);
     let v6: i64 = v5.wrapping_div(100i64);
     let v7: Rc<str> = show_i64_29(v6);
-    let v8: Rc<str> = Rc::<str>::from(format!("{}{}", v7, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("."); } LIT.with(|lit| lit.clone()) }));
     let v9: i64 = v5.wrapping_rem(100i64);
     let v10: Rc<str> = pad2_31(v9);
-    let v11: Rc<str> = Rc::<str>::from(format!("{}{}", v8, v10));
+    let v11: Rc<str> = string_concat(&[&*v7, ".", &*v10]);
     v11
 }
 fn bytes_label_27(mut v0: i64) -> Rc<str> {
@@ -472,32 +471,31 @@ fn bytes_label_27(mut v0: i64) -> Rc<str> {
     if v1 {
         let mut v2: i64 = 1048576i64;
         let v3: Rc<str> = hundredths_28(v0, v2);
-        let v4: Rc<str> = Rc::<str>::from(format!("{}{}", v3, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(" MB"); } LIT.with(|lit| lit.clone()) }));
+        let v4: Rc<str> = string_concat(&[&*v3, " MB"]);
         v4
     } else {
         let v5: bool = v0 > 1024i64;
         if v5 {
             let v6: i64 = 1024i64;
             let v7: Rc<str> = hundredths_28(v0, v6);
-            let v8: Rc<str> = Rc::<str>::from(format!("{}{}", v7, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(" KB"); } LIT.with(|lit| lit.clone()) }));
+            let v8: Rc<str> = string_concat(&[&*v7, " KB"]);
             v8
         } else {
             let v9: i64 = 1i64;
             let v10: Rc<str> = hundredths_28(v0, v9);
-            let v11: Rc<str> = Rc::<str>::from(format!("{}{}", v10, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(" B"); } LIT.with(|lit| lit.clone()) }));
+            let v11: Rc<str> = string_concat(&[&*v10, " B"]);
             v11
         }
     }
 }
 fn entry_link_25(mut v0: Rc<str>, mut v1: Rc<str>, mut v2: Rc<str>, mut v3: i64) -> markup {
-    let v4: Rc<str> = Rc::<str>::from(format!("{}{}", v0, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(" "); } LIT.with(|lit| lit.clone()) }));
+    let v4: Rc<str> = string_concat(&[&*v0, " "]);
     let v5: markup = trusted_18(v4);
     let v6: markup = html_model::html_model_escape(&v2);
     let v7: markup = anchor_26(v1, v6);
     let v8: markup = joined_16(v5, v7);
     let v9: Rc<str> = bytes_label_27(v3);
-    let v10: Rc<str> = Rc::<str>::from(format!("{}{}", { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("<span> ("); } LIT.with(|lit| lit.clone()) }, v9));
-    let v11: Rc<str> = Rc::<str>::from(format!("{}{}", v10, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(")</span>"); } LIT.with(|lit| lit.clone()) }));
+    let v11: Rc<str> = string_concat(&["<span> (", &*v9, ")</span>"]);
     let v12: markup = trusted_18(v11);
     joined_16(v8, v12)
 }
@@ -543,7 +541,7 @@ fn file_html_32(mut v0: bool, mut v1: Rc<str>, mut v2: Rc<str>, mut v3: i64) -> 
     };
     if v5 {
         let v6: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("&#128196;"); } LIT.with(|lit| lit.clone()) };
-        let v7: Rc<str> = Rc::<str>::from(format!("{}{}", v2.clone(), { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(".html"); } LIT.with(|lit| lit.clone()) }));
+        let v7: Rc<str> = string_concat(&[&*v2, ".html"]);
         let v8: markup = entry_link_25(v6, v7, v1, v3);
         let v9: markup = raw_link_34(v2);
         joined_16(v8, v9)
@@ -847,8 +845,7 @@ fn closure6() -> Rc<dyn Fn(Rc<str>, viewer, Rc<str>) -> Rc<str>> {
                 let v38: Rc<UH3> = Rc::new(UH3::UH3_Cons(v33, v0.clone(), v37));
                 let v39: Rc<UH3> = Rc::new(UH3::UH3_Cons(v32, v0.clone(), v38));
                 let v40: Rc<str> = attributes_22(v39);
-                let v41: Rc<str> = Rc::<str>::from(format!("{}{}", { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("<img"); } LIT.with(|lit| lit.clone()) }, v40));
-                let v42: Rc<str> = Rc::<str>::from(format!("{}{}", v41, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(">"); } LIT.with(|lit| lit.clone()) }));
+                let v42: Rc<str> = string_concat(&["<img", &*v40, ">"]);
                 let v43: markup = trusted_18(v42);
                 let v44: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("p"); } LIT.with(|lit| lit.clone()) };
                 let v45: Rc<UH3> = { thread_local!{ static CASE: Rc<UH3> = Rc::new(UH3::UH3_Nil); } CASE.with(|case| case.clone()) };

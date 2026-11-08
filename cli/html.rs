@@ -2,6 +2,16 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use html_model::{list_string, node, list_node, viewer};
+fn string_concat(parts: &[&str]) -> Rc<str> {
+    let mut joined = Rc::<[u8]>::new_uninit_slice(parts.iter().map(|part| part.len()).sum());
+    let bytes = Rc::get_mut(&mut joined).unwrap().as_mut_ptr() as *mut u8;
+    let mut at = 0;
+    for part in parts {
+        unsafe { std::ptr::copy_nonoverlapping(part.as_ptr(), bytes.add(at), part.len()) };
+        at += part.len();
+    }
+    unsafe { Rc::from_raw(Rc::into_raw(joined.assume_init()) as *const str) }
+}
 fn string_slice(value: &str, from: i64, to: i64) -> Rc<str> {
     let bytes = value.as_bytes();
     let length = bytes.len() as i64;
@@ -145,8 +155,7 @@ fn method7(mut v0: Rc<list_string>, mut v1: Rc<str>) -> Rc<str> {
                 let mut v7: Rc<str> = if v4 {
                     v2
                 } else {
-                    let mut v5: Rc<str> = Rc::<str>::from(format!("{}{}", v1, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(" | "); } LIT.with(|lit| lit.clone()) }));
-                    let mut v6: Rc<str> = Rc::<str>::from(format!("{}{}", v5, v2));
+                    let mut v6: Rc<str> = string_concat(&[&*v1, " | ", &*v2]);
                     v6
                 };
                 (v0, v1) = (v3, v7);
@@ -257,10 +266,7 @@ fn render_mode_4(mut v0: Rc<list_string>) -> US1 {
                 US3::US3_BadNumber(v51, v52) => {
                     let v51: Rc<str> = v51;
                     let v52: Rc<str> = v52;
-                    let v53: Rc<str> = Rc::<str>::from(format!("{}{}", { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("error: --"); } LIT.with(|lit| lit.clone()) }, v51));
-                    let v54: Rc<str> = Rc::<str>::from(format!("{}{}", v53, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(" expects an integer, got '"); } LIT.with(|lit| lit.clone()) }));
-                    let v55: Rc<str> = Rc::<str>::from(format!("{}{}", v54, v52));
-                    let v56: Rc<str> = Rc::<str>::from(format!("{}{}", v55, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("'"); } LIT.with(|lit| lit.clone()) }));
+                    let v56: Rc<str> = string_concat(&["error: --", &*v51, " expects an integer, got '", &*v52, "'"]);
                     v56
                 }
                 US3::US3_Help(v68) => {
@@ -269,25 +275,22 @@ fn render_mode_4(mut v0: Rc<list_string>) -> US1 {
                 }
                 US3::US3_MissingFlag(v48) => {
                     let v48: Rc<str> = v48;
-                    let v49: Rc<str> = Rc::<str>::from(format!("{}{}", { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("error: missing --"); } LIT.with(|lit| lit.clone()) }, v48));
-                    let v50: Rc<str> = Rc::<str>::from(format!("{}{}", v49, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(" <value>"); } LIT.with(|lit| lit.clone()) }));
+                    let v50: Rc<str> = string_concat(&["error: missing --", &*v48, " <value>"]);
                     v50
                 }
                 US3::US3_NoVerb(v64) => {
                     let v64: Rc<list_string> = v64;
                     let v65: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(""); } LIT.with(|lit| lit.clone()) };
                     let v66: Rc<str> = method7(v64, v65);
-                    let v67: Rc<str> = Rc::<str>::from(format!("{}{}", { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("error: no command given\nvalid: "); } LIT.with(|lit| lit.clone()) }, v66));
+                    let v67: Rc<str> = string_concat(&["error: no command given\nvalid: ", &*v66]);
                     v67
                 }
                 US3::US3_UnknownVerb(v57, v58) => {
                     let v57: Rc<str> = v57;
                     let v58: Rc<list_string> = v58;
-                    let v59: Rc<str> = Rc::<str>::from(format!("{}{}", { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("error: unknown command '"); } LIT.with(|lit| lit.clone()) }, v57));
-                    let v60: Rc<str> = Rc::<str>::from(format!("{}{}", v59, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("'\nvalid: "); } LIT.with(|lit| lit.clone()) }));
                     let v61: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(""); } LIT.with(|lit| lit.clone()) };
                     let v62: Rc<str> = method7(v58, v61);
-                    let v63: Rc<str> = Rc::<str>::from(format!("{}{}", v60, v62));
+                    let v63: Rc<str> = string_concat(&["error: unknown command '", &*v57, "'\nvalid: ", &*v62]);
                     v63
                 }
             };
@@ -334,13 +337,13 @@ fn put_17(mut v0: Rc<str>, mut v1: Rc<str>) -> () {
     ()
 }
 fn put_page_16(mut v0: Rc<str>, mut v1: Rc<str>, mut v2: viewer) -> i32 {
-    let v3: Rc<str> = Rc::<str>::from(format!("{}{}", v0.clone(), { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(".html"); } LIT.with(|lit| lit.clone()) }));
+    let v3: Rc<str> = string_concat(&[&*v0, ".html"]);
     let v4: Rc<str> = html_walk::html_walk_slurped(&v0);
     let mut v5: Rc<str> = html_pages::html_pages_file(&v1, v2, &v4);
     put_17(v3, v5);
     1i32
 }
-fn file_exists_19(mut v0: Rc<str>) -> bool {
+fn file_exists_18(mut v0: Rc<str>) -> bool {
     let mut v2: &str = &*v0;
     let v4: std::string::String = String::from(v2);
     let mut v6: std::path::PathBuf = std::path::PathBuf::from(v4);
@@ -352,9 +355,6 @@ fn file_exists_19(mut v0: Rc<str>) -> bool {
         false
     }
 }
-fn present_18(mut v0: Rc<str>) -> bool {
-    file_exists_19(v0)
-}
 fn write_file_page_15(mut v0: Rc<str>, mut v1: Rc<str>) -> i32 {
     let mut v2: viewer = html_pages::html_pages_viewer(&v1);
     match &v2 {
@@ -362,8 +362,8 @@ fn write_file_page_15(mut v0: Rc<str>, mut v1: Rc<str>) -> i32 {
             0i32
         }
         _ => {
-            let v3: Rc<str> = Rc::<str>::from(format!("{}{}", v0.clone(), { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(".html"); } LIT.with(|lit| lit.clone()) }));
-            let v4: bool = present_18(v3);
+            let v3: Rc<str> = string_concat(&[&*v0, ".html"]);
+            let v4: bool = file_exists_18(v3);
             if v4 {
                 0i32
             } else {
@@ -372,24 +372,24 @@ fn write_file_page_15(mut v0: Rc<str>, mut v1: Rc<str>) -> i32 {
         }
     }
 }
-fn method21(mut v0: std::path::PathBuf) -> std::path::PathBuf {
+fn method20(mut v0: std::path::PathBuf) -> std::path::PathBuf {
     v0
 }
-fn method20(mut v0: Rc<str>, mut v1: Rc<str>) -> Rc<str> {
+fn method19(mut v0: Rc<str>, mut v1: Rc<str>) -> Rc<str> {
     let v3: &str = &*v0;
     let mut v5: std::string::String = String::from(v3);
     let mut v7: std::path::PathBuf = std::path::PathBuf::from(v5);
     let v9: &str = &*v1;
     let v11: std::string::String = String::from(v9);
     let v13: std::path::PathBuf = v7.join(v11);
-    let mut v14: std::path::PathBuf = method21(v13);
+    let mut v14: std::path::PathBuf = method20(v13);
     let v16: std::path::Display = v14.display();
     let v18: std::string::String = format!("{}", v16);
     let v20: Rc<str> = Rc::<str>::from(String::as_str(&v18));
     v20
 }
 fn page_at_14(mut v0: Rc<str>, mut v1: Rc<str>, mut v2: Rc<str>) -> i32 {
-    let v3: Rc<str> = method20(v0, v1);
+    let v3: Rc<str> = method19(v0, v1);
     write_file_page_15(v3, v2)
 }
 fn write_file_pages_13(mut v0: Rc<str>, mut v1: Rc<list_node>, mut v2: i32) -> i32 {
@@ -424,7 +424,7 @@ fn write_file_pages_13(mut v0: Rc<str>, mut v1: Rc<list_node>, mut v2: i32) -> i
         }
     }
 }
-fn write_index_22(mut v0: Rc<str>, mut v1: Rc<str>, mut v2: bool, mut v3: Rc<list_node>) -> () {
+fn write_index_21(mut v0: Rc<str>, mut v1: Rc<str>, mut v2: bool, mut v3: Rc<list_node>) -> () {
     let (mut v4, mut v5): (bool, Rc<str>) = html_walk::html_walk_readme(&v0);
     let mut v6: Rc<str> = html_pages::html_pages_index(v2, v3, v4, &v5);
     put_17(v1, v6)
@@ -437,7 +437,7 @@ fn render_listed_12(mut v0: Rc<str>, mut v1: Rc<str>, mut v2: bool) -> US5 {
     } else {
         0i32
     };
-    write_index_22(v0, v1, v2, v3);
+    write_index_21(v0, v1, v2, v3);
     US5::US5_Wrote(v6)
 }
 fn render_tree_11(mut v0: Rc<str>, mut v1: Rc<str>, mut v2: bool) -> US5 {
@@ -449,9 +449,9 @@ fn render_tree_11(mut v0: Rc<str>, mut v1: Rc<str>, mut v2: bool) -> US5 {
         US5::US5_Refused(v3)
     }
 }
-fn get_temp_path_26() -> Rc<str> {
+fn get_temp_path_25() -> Rc<str> {
     let mut v1: std::path::PathBuf = std::env::temp_dir();
-    let mut v2: std::path::PathBuf = method21(v1);
+    let mut v2: std::path::PathBuf = method20(v1);
     let v4: std::path::Display = v2.display();
     let mut v6: std::string::String = format!("{}", v4);
     let v8: Rc<str> = Rc::<str>::from(String::as_str(&v6));
@@ -480,7 +480,7 @@ fn get_temp_path_26() -> Rc<str> {
         v8
     }
 }
-fn go_27(mut v0: i32, mut v1: u64, mut v2: Rc<str>) -> Rc<str> {
+fn go_26(mut v0: i32, mut v1: u64, mut v2: Rc<str>) -> Rc<str> {
     loop {
         let v3: bool = v0 <= 0i32;
         if v3 {
@@ -491,14 +491,14 @@ fn go_27(mut v0: i32, mut v1: u64, mut v2: Rc<str>) -> Rc<str> {
             let mut v6: i32 = v0.wrapping_sub(1i32);
             let mut v7: u64 = v1.wrapping_shr((4i32) as u32);
             let v8: Rc<str> = string_slice(&{ thread_local!{ static LIT: Rc<str> = Rc::<str>::from("0123456789abcdef"); } LIT.with(|lit| lit.clone()) }, v5 as i64, v5 as i64);
-            let v9: Rc<str> = Rc::<str>::from(format!("{}{}", v8, v2));
+            let v9: Rc<str> = string_concat(&[&*v8, &*v2]);
             (v0, v1, v2) = (v6, v7, v9);
             continue;
         }
     }
 }
-fn fixture_directory_25() -> Rc<str> {
-    let mut v0: Rc<str> = get_temp_path_26();
+fn fixture_directory_24() -> Rc<str> {
+    let mut v0: Rc<str> = get_temp_path_25();
     let mut v1: std::collections::hash_map::DefaultHasher = std::hash::BuildHasher::build_hasher(&std::collections::hash_map::RandomState::new());
     let v3: bool = true; // 1;
     let mut v1 = v1;
@@ -516,65 +516,58 @@ fn fixture_directory_25() -> Rc<str> {
     let mut v14: u64 = v12 & 4294967295u64;
     let v15: i32 = 8i32;
     let v16: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(""); } LIT.with(|lit| lit.clone()) };
-    let v17: Rc<str> = go_27(v15, v14, v16.clone());
-    let v18: Rc<str> = Rc::<str>::from(format!("{}{}", v17, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("-"); } LIT.with(|lit| lit.clone()) }));
+    let v17: Rc<str> = go_26(v15, v14, v16.clone());
     let v19: u64 = v12.wrapping_shr((32i32) as u32);
     let v20: u64 = v19 & 65535u64;
     let v21: i32 = 4i32;
-    let v22: Rc<str> = go_27(v21, v20, v16.clone());
-    let v23: Rc<str> = Rc::<str>::from(format!("{}{}", v18, v22));
-    let v24: Rc<str> = Rc::<str>::from(format!("{}{}", v23, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("-4"); } LIT.with(|lit| lit.clone()) }));
+    let v22: Rc<str> = go_26(v21, v20, v16.clone());
     let v25: u64 = v12.wrapping_shr((48i32) as u32);
     let v26: u64 = v25 & 4095u64;
     let v27: i32 = 3i32;
-    let v28: Rc<str> = go_27(v27, v26, v16.clone());
-    let v29: Rc<str> = Rc::<str>::from(format!("{}{}", v24, v28));
-    let v30: Rc<str> = Rc::<str>::from(format!("{}{}", v29, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("-"); } LIT.with(|lit| lit.clone()) }));
+    let v28: Rc<str> = go_26(v27, v26, v16.clone());
     let v31: u64 = v13 & 16383u64;
     let v32: u64 = v31 | 32768u64;
     let v33: i32 = 4i32;
-    let v34: Rc<str> = go_27(v33, v32, v16.clone());
-    let v35: Rc<str> = Rc::<str>::from(format!("{}{}", v30, v34));
-    let v36: Rc<str> = Rc::<str>::from(format!("{}{}", v35, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("-"); } LIT.with(|lit| lit.clone()) }));
+    let v34: Rc<str> = go_26(v33, v32, v16.clone());
     let v37: u64 = v13.wrapping_shr((16i32) as u32);
     let v38: u64 = v37 & 281474976710655u64;
     let v39: i32 = 12i32;
-    let v40: Rc<str> = go_27(v39, v38, v16);
-    let v41: Rc<str> = Rc::<str>::from(format!("{}{}", v36, v40));
+    let v40: Rc<str> = go_26(v39, v38, v16);
+    let v41: Rc<str> = string_concat(&[&*v17, "-", &*v22, "-4", &*v28, "-", &*v34, "-", &*v40]);
     let v42: Rc<str> = Rc::<str>::from(v41.to_lowercase());
     let v43: Rc<str> = v42 ;
-    let v44: Rc<str> = Rc::<str>::from(format!("{}{}", { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("html-self-test-"); } LIT.with(|lit| lit.clone()) }, v43));
-    method20(v0, v44)
+    let v44: Rc<str> = string_concat(&["html-self-test-", &*v43]);
+    method19(v0, v44)
 }
-fn make_directory_29(mut v0: Rc<str>) -> () {
+fn make_directory_28(mut v0: Rc<str>) -> () {
     std::fs::create_dir_all(&*v0).unwrap();
     ()
 }
-fn times_30(mut v0: Rc<str>, mut v1: i64) -> Rc<str> {
+fn times_29(mut v0: Rc<str>, mut v1: i64) -> Rc<str> {
     let mut v2: bool = v1 <= 0i64;
     if v2 {
         let v3: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(""); } LIT.with(|lit| lit.clone()) };
         v3
     } else {
         let v4: i64 = v1.wrapping_sub(1i64);
-        let mut v5: Rc<str> = times_30(v0.clone(), v4);
-        let mut v6: Rc<str> = Rc::<str>::from(format!("{}{}", v0, v5));
+        let mut v5: Rc<str> = times_29(v0.clone(), v4);
+        let mut v6: Rc<str> = string_concat(&[&*v0, &*v5]);
         v6
     }
 }
-fn lay_28(mut v0: Rc<str>, mut v1: i64) -> () {
+fn lay_27(mut v0: Rc<str>, mut v1: i64) -> () {
     loop {
         let mut v2: bool = v1 >= 0i64;
         if v2 {
-            make_directory_29(v0.clone());
+            make_directory_28(v0.clone());
             let v3: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("file.txt"); } LIT.with(|lit| lit.clone()) };
-            let v4: Rc<str> = method20(v0.clone(), v3);
+            let v4: Rc<str> = method19(v0.clone(), v3);
             let mut v5: Rc<str> = html_pages::html_pages_digit(v1);
             let mut v6: i64 = v1.wrapping_add(1i64);
-            let mut v7: Rc<str> = times_30(v5, v6);
+            let mut v7: Rc<str> = times_29(v5, v6);
             put_17(v4, v7);
             let v8: Rc<str> = html_pages::html_pages_digit(v1);
-            let v9: Rc<str> = method20(v0, v8);
+            let v9: Rc<str> = method19(v0, v8);
             let v10: i64 = v1.wrapping_sub(1i64);
             (v0, v1) = (v9, v10);
             continue;
@@ -582,12 +575,12 @@ fn lay_28(mut v0: Rc<str>, mut v1: i64) -> () {
         return ();
     }
 }
-fn tree_check_24() -> US0 {
-    let mut v0: Rc<str> = fixture_directory_25();
+fn tree_check_23() -> US0 {
+    let mut v0: Rc<str> = fixture_directory_24();
     let mut v1: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("_.root"); } LIT.with(|lit| lit.clone()) };
-    let mut v2: Rc<str> = method20(v0.clone(), v1);
+    let mut v2: Rc<str> = method19(v0.clone(), v1);
     let v3: i64 = 3i64;
-    lay_28(v2, v3);
+    lay_27(v2, v3);
     let v4: Rc<list_node> = html_walk::html_walk_walked(&v0);
     let mut v5: Rc<str> = html_pages::html_pages_tree(false, v4);
     let mut v6: Rc<str> = html_pages::html_pages_fixture();
@@ -598,42 +591,42 @@ fn tree_check_24() -> US0 {
         US0::US0_None
     }
 }
-fn viewer_fixture_32() -> Rc<str> {
-    let mut v0: Rc<str> = fixture_directory_25();
-    make_directory_29(v0.clone());
+fn viewer_fixture_31() -> Rc<str> {
+    let mut v0: Rc<str> = fixture_directory_24();
+    make_directory_28(v0.clone());
     let mut v1: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("a.spi"); } LIT.with(|lit| lit.clone()) };
-    let mut v2: Rc<str> = method20(v0.clone(), v1);
+    let mut v2: Rc<str> = method19(v0.clone(), v1);
     let v3: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("x < 1"); } LIT.with(|lit| lit.clone()) };
     put_17(v2, v3);
     let v4: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("a.spi.html"); } LIT.with(|lit| lit.clone()) };
-    let mut v5: Rc<str> = method20(v0.clone(), v4);
+    let mut v5: Rc<str> = method19(v0.clone(), v4);
     let mut v6: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("kept"); } LIT.with(|lit| lit.clone()) };
     put_17(v5, v6);
     let mut v7: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("b.tsv"); } LIT.with(|lit| lit.clone()) };
-    let v8: Rc<str> = method20(v0.clone(), v7);
+    let v8: Rc<str> = method19(v0.clone(), v7);
     let v9: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("h1\th2\nv1\tv2"); } LIT.with(|lit| lit.clone()) };
     put_17(v8, v9);
     let v10: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("c.txt"); } LIT.with(|lit| lit.clone()) };
-    let v11: Rc<str> = method20(v0.clone(), v10);
+    let v11: Rc<str> = method19(v0.clone(), v10);
     let v12: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("t"); } LIT.with(|lit| lit.clone()) };
     put_17(v11, v12);
     v0
 }
-fn viewers_kept_33(mut v0: Rc<str>) -> bool {
+fn viewers_kept_32(mut v0: Rc<str>) -> bool {
     let mut v1: Rc<list_node> = html_walk::html_walk_walked(&v0);
     let mut v2: i32 = 0i32;
     let v3: i32 = write_file_pages_13(v0.clone(), v1, v2);
     let v4: bool = v3 == 1i32;
     let v8: bool = if v4 {
         let mut v5: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("b.tsv.html"); } LIT.with(|lit| lit.clone()) };
-        let mut v6: Rc<str> = method20(v0.clone(), v5);
-        present_18(v6)
+        let mut v6: Rc<str> = method19(v0.clone(), v5);
+        file_exists_18(v6)
     } else {
         false
     };
     let v13: bool = if v8 {
         let v9: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("a.spi.html"); } LIT.with(|lit| lit.clone()) };
-        let v10: Rc<str> = method20(v0.clone(), v9);
+        let v10: Rc<str> = method19(v0.clone(), v9);
         let v11: Rc<str> = html_walk::html_walk_slurped(&v10);
         let v12: bool = &*v11 == "kept";
         v12
@@ -642,23 +635,23 @@ fn viewers_kept_33(mut v0: Rc<str>) -> bool {
     };
     if v13 {
         let mut v14: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("c.txt.html"); } LIT.with(|lit| lit.clone()) };
-        let v15: Rc<str> = method20(v0, v14);
-        let v16: bool = present_18(v15);
+        let v15: Rc<str> = method19(v0, v14);
+        let v16: bool = file_exists_18(v15);
         let v17: bool = v16 == false;
         v17
     } else {
         false
     }
 }
-fn missing_refused_34() -> bool {
-    let mut v0: Rc<str> = fixture_directory_25();
-    let mut v1: Rc<str> = Rc::<str>::from(format!("{}{}", v0.clone(), { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(".html"); } LIT.with(|lit| lit.clone()) }));
+fn missing_refused_33() -> bool {
+    let mut v0: Rc<str> = fixture_directory_24();
+    let mut v1: Rc<str> = string_concat(&[&*v0, ".html"]);
     let mut v2: bool = false;
     let v3: US5 = render_tree_11(v0, v1.clone(), v2);
     match v3 {
         US5::US5_Refused(v4) => {
             let v4: Rc<str> = v4;
-            let mut v5: bool = present_18(v1);
+            let mut v5: bool = file_exists_18(v1);
             let mut v6: bool = v5 == false;
             v6
         }
@@ -667,15 +660,15 @@ fn missing_refused_34() -> bool {
         }
     }
 }
-fn fixture_failure_31() -> US0 {
-    let mut v0: Rc<str> = viewer_fixture_32();
-    let mut v1: bool = viewers_kept_33(v0);
+fn fixture_failure_30() -> US0 {
+    let mut v0: Rc<str> = viewer_fixture_31();
+    let mut v1: bool = viewers_kept_32(v0);
     let mut v2: bool = v1 == false;
     if v2 {
         let v3: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("viewers: want b.tsv.html, a.spi.html kept, no c.txt.html"); } LIT.with(|lit| lit.clone()) };
         US0::US0_Some(v3)
     } else {
-        let mut v5: bool = missing_refused_34();
+        let mut v5: bool = missing_refused_33();
         let mut v6: bool = v5 == false;
         if v6 {
             let mut v7: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("walk: an unreadable folder must be refused"); } LIT.with(|lit| lit.clone()) };
@@ -685,11 +678,11 @@ fn fixture_failure_31() -> US0 {
         }
     }
 }
-fn self_test_23() -> US5 {
-    let mut v0: US0 = tree_check_24();
+fn self_test_22() -> US5 {
+    let mut v0: US0 = tree_check_23();
     match v0 {
         US0::US0_None => {
-            let v3: US0 = fixture_failure_31();
+            let v3: US0 = fixture_failure_30();
             match v3 {
                 US0::US0_None => {
                     US5::US5_Wrote(0i32)
@@ -719,15 +712,15 @@ fn run_10(mut v0: US1) -> US5 {
             render_tree_11(v1, v2, v3)
         }
         US1::US1_SelfTest => {
-            self_test_23()
+            self_test_22()
         }
     }
 }
-fn exit_of_35(mut v0: US5) -> i32 {
+fn exit_of_34(mut v0: US5) -> i32 {
     match v0 {
         US5::US5_Mismatch(v2) => {
             let mut v2: Rc<str> = v2;
-            let v3: Rc<str> = Rc::<str>::from(format!("{}{}", { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("html self-test mismatch: "); } LIT.with(|lit| lit.clone()) }, v2));
+            let v3: Rc<str> = string_concat(&["html self-test mismatch: ", &*v2]);
             eprintln!("{}", v3);
             1i32
         }
@@ -747,7 +740,7 @@ fn spiral_main() -> i32 {
     let mut v1: Rc<list_string> = arguments_from_0(v0);
     let mut v2: US1 = mode_of_3(v1);
     let v3: US5 = run_10(v2);
-    exit_of_35(v3)
+    exit_of_34(v3)
 }
 fn main() { #[cfg(target_arch = "wasm32")] { spiral_main(); return; }
     let main = std::thread::Builder::new().stack_size(1 << 30).spawn(spiral_main).unwrap();

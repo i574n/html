@@ -1,6 +1,7 @@
 :< markup
 :< doc_blocks
 :< model
+:< doc_text
 
 := blocks_of (b : block) : list block = [ b ]
 

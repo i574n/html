@@ -11,19 +11,29 @@ fn string_slice(value: &str, from: i64, to: i64) -> Rc<str> {
     let slice = &bytes[from as usize..(to + 1) as usize];
     match std::str::from_utf8(slice) { Ok(text) => Rc::<str>::from(text), Err(error) => Rc::<str>::from(std::str::from_utf8(&slice[..error.valid_up_to()]).unwrap_or("")) }
 }
+fn string_concat(parts: &[&str]) -> Rc<str> {
+    let mut joined = Rc::<[u8]>::new_uninit_slice(parts.iter().map(|part| part.len()).sum());
+    let bytes = Rc::get_mut(&mut joined).unwrap().as_mut_ptr() as *mut u8;
+    let mut at = 0;
+    for part in parts {
+        unsafe { std::ptr::copy_nonoverlapping(part.as_ptr(), bytes.add(at), part.len()) };
+        at += part.len();
+    }
+    unsafe { Rc::from_raw(Rc::into_raw(joined.assume_init()) as *const str) }
+}
 #[derive(Clone)]
 enum US3 {
     US3_Idle,
     US3_InParagraph(Rc<str>),
     US3_InBullets(Rc<list_list_inline>, Rc<str>),
     US3_InNumbered(i64, Rc<list_list_inline>, Rc<str>),
-    US3_InCode(Rc<list_string>),
+    US3_InCode(Rc<str>, Rc<list_string>),
     US3_InTable(Rc<list_align>, Rc<list_list_inline>, Rc<list_list_list_inline>),
 }
 #[derive(Clone)]
 enum US4 {
     US4_Blank,
-    US4_Fence,
+    US4_Fence(Rc<str>),
     US4_HeadingLine(level, Rc<str>),
     US4_RuleLine,
     US4_RowLine(Rc<str>),
@@ -107,10 +117,10 @@ fn method10(mut v0: Rc<list_string>, mut v1: Rc<list_string>) -> Rc<list_string>
         }
     }
 }
-fn pre_of_9(mut v0: Rc<list_string>) -> block {
-    let mut v1: Rc<list_string> = { thread_local!{ static CASE: Rc<list_string> = Rc::new(list_string::list_string_Nil); } CASE.with(|case| case.clone()) };
-    let v2: Rc<list_string> = method10(v0, v1);
-    block::block_CodeBlock(v2)
+fn pre_of_9(mut v0: Rc<list_string>, mut v1: Rc<str>) -> block {
+    let v2: Rc<list_string> = { thread_local!{ static CASE: Rc<list_string> = Rc::new(list_string::list_string_Nil); } CASE.with(|case| case.clone()) };
+    let v3: Rc<list_string> = method10(v0, v2);
+    block::block_CodeBlock(v1, v3)
 }
 fn method12(mut v0: Rc<list_list_list_inline>, mut v1: Rc<list_list_list_inline>) -> Rc<list_list_list_inline> {
     loop {
@@ -135,17 +145,18 @@ fn rows_of_11(mut v0: Rc<list_list_list_inline>, mut v1: Rc<list_list_inline>, m
 }
 fn close_block_8(mut v0: US3, mut v1: Rc<list_block>) -> Rc<list_block> {
     match v0 {
-        US3::US3_InCode(v2) => {
-            let v2: Rc<list_string> = v2;
-            let v3: block = pre_of_9(v2);
-            Rc::new(list_block::list_block_Cons(v3, v1))
+        US3::US3_InCode(v2, v3) => {
+            let v2: Rc<str> = v2;
+            let v3: Rc<list_string> = v3;
+            let v4: block = pre_of_9(v3, v2);
+            Rc::new(list_block::list_block_Cons(v4, v1))
         }
-        US3::US3_InTable(v5, v6, v7) => {
-            let v5: Rc<list_align> = v5;
-            let v6: Rc<list_list_inline> = v6;
-            let v7: Rc<list_list_list_inline> = v7;
-            let v8: block = rows_of_11(v7, v6, v5);
-            Rc::new(list_block::list_block_Cons(v8, v1))
+        US3::US3_InTable(v6, v7, v8) => {
+            let v6: Rc<list_align> = v6;
+            let v7: Rc<list_list_inline> = v7;
+            let v8: Rc<list_list_list_inline> = v8;
+            let v9: block = rows_of_11(v8, v7, v6);
+            Rc::new(list_block::list_block_Cons(v9, v1))
         }
         _ => {
             v1
@@ -208,18 +219,18 @@ fn close_7(mut v0: US3, mut v1: Rc<list_block>) -> Rc<list_block> {
         }
     }
 }
-fn code_step_4(mut v0: Rc<str>, mut v1: Rc<list_string>, mut v2: Rc<list_string>, mut v3: Rc<list_block>) -> (Rc<list_string>, US3, Rc<list_block>) {
-    let v4: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("```"); } LIT.with(|lit| lit.clone()) };
-    let v5: bool = starts_with_5(v0.clone(), v4);
-    if v5 {
-        let v6: US3 = US3::US3_InCode(v2);
-        let v7: Rc<list_block> = close_7(v6, v3);
-        let v8: US3 = US3::US3_Idle;
-        (v1, v8, v7)
+fn code_step_4(mut v0: Rc<str>, mut v1: Rc<list_string>, mut v2: Rc<list_string>, mut v3: Rc<str>, mut v4: Rc<list_block>) -> (Rc<list_string>, US3, Rc<list_block>) {
+    let v5: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("```"); } LIT.with(|lit| lit.clone()) };
+    let v6: bool = starts_with_5(v0.clone(), v5);
+    if v6 {
+        let v7: US3 = US3::US3_InCode(v3, v2);
+        let v8: Rc<list_block> = close_7(v7, v4);
+        let v9: US3 = US3::US3_Idle;
+        (v1, v9, v8)
     } else {
-        let v9: Rc<list_string> = Rc::new(list_string::list_string_Cons(v0, v2));
-        let v10: US3 = US3::US3_InCode(v9);
-        (v1, v10, v3)
+        let v10: Rc<list_string> = Rc::new(list_string::list_string_Cons(v0, v2));
+        let v11: US3 = US3::US3_InCode(v3, v10);
+        (v1, v11, v4)
     }
 }
 fn at_is_22(mut v0: Rc<str>, mut v1: i32, mut v2: u8) -> bool {
@@ -458,10 +469,13 @@ fn classify_18(mut v0: Rc<str>) -> US4 {
         let v6: Rc<str> = { thread_local!{ static LIT: Rc<str> = Rc::<str>::from("```"); } LIT.with(|lit| lit.clone()) };
         let v7: bool = starts_with_5(v0.clone(), v6);
         if v7 {
-            US4::US4_Fence
+            let v8: i32 = 3i32;
+            let v9: Rc<str> = run_of_6(v0, v8, v3);
+            let v10: Rc<str> = html_model::html_model_trim(&v9);
+            US4::US4_Fence(v10)
         } else {
-            let v9: bool = &*v0 == "---";
-            if v9 {
+            let v12: bool = &*v0 == "---";
+            if v12 {
                 US4::US4_RuleLine
             } else {
                 shaped_19(v0, v2)
@@ -565,9 +579,8 @@ fn continues_36(mut v0: US3) -> bool {
     }
 }
 fn joined_trim_39(mut v0: Rc<str>, mut v1: Rc<str>) -> Rc<str> {
-    let v2: Rc<str> = Rc::<str>::from(format!("{}{}", v0, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(" "); } LIT.with(|lit| lit.clone()) }));
     let v3: Rc<str> = html_model::html_model_trim(&v1);
-    let v4: Rc<str> = Rc::<str>::from(format!("{}{}", v2, v3));
+    let v4: Rc<str> = string_concat(&[&*v0, " ", &*v3]);
     v4
 }
 fn grow_item_38(mut v0: Rc<str>, mut v1: Rc<list_list_inline>, mut v2: Rc<str>) -> (Rc<list_list_inline>, Rc<str>) {
@@ -595,8 +608,7 @@ fn grow_37(mut v0: US3, mut v1: Rc<str>) -> US3 {
         }
         US3::US3_InParagraph(v2) => {
             let v2: Rc<str> = v2;
-            let v3: Rc<str> = Rc::<str>::from(format!("{}{}", v2, { thread_local!{ static LIT: Rc<str> = Rc::<str>::from(" "); } LIT.with(|lit| lit.clone()) }));
-            let v4: Rc<str> = Rc::<str>::from(format!("{}{}", v3, v1));
+            let v4: Rc<str> = string_concat(&[&*v2, " ", &*v1]);
             US3::US3_InParagraph(v4)
         }
         _ => {
@@ -709,27 +721,28 @@ fn heading_block_47(mut v0: level, mut v1: Rc<str>) -> block {
 fn ended_46(mut v0: US4, mut v1: Rc<list_string>, mut v2: Rc<list_block>) -> US10 {
     match v0 {
         US4::US4_Blank => {
-            let v6: US3 = US3::US3_Idle;
-            US10::US10_Some(v1, v6, v2)
+            let v7: US3 = US3::US3_Idle;
+            US10::US10_Some(v1, v7, v2)
         }
-        US4::US4_Fence => {
-            let v3: Rc<list_string> = { thread_local!{ static CASE: Rc<list_string> = Rc::new(list_string::list_string_Nil); } CASE.with(|case| case.clone()) };
-            let v4: US3 = US3::US3_InCode(v3);
-            US10::US10_Some(v1, v4, v2)
+        US4::US4_Fence(v3) => {
+            let v3: Rc<str> = v3;
+            let v4: Rc<list_string> = { thread_local!{ static CASE: Rc<list_string> = Rc::new(list_string::list_string_Nil); } CASE.with(|case| case.clone()) };
+            let v5: US3 = US3::US3_InCode(v3, v4);
+            US10::US10_Some(v1, v5, v2)
         }
-        US4::US4_HeadingLine(v8, v9) => {
-            let v8: level = v8;
-            let v9: Rc<str> = v9;
-            let v10: block = heading_block_47(v8, v9);
-            let v11: US3 = US3::US3_Idle;
-            let v12: Rc<list_block> = Rc::new(list_block::list_block_Cons(v10, v2));
-            US10::US10_Some(v1, v11, v12)
+        US4::US4_HeadingLine(v9, v10) => {
+            let v9: level = v9;
+            let v10: Rc<str> = v10;
+            let v11: block = heading_block_47(v9, v10);
+            let v12: US3 = US3::US3_Idle;
+            let v13: Rc<list_block> = Rc::new(list_block::list_block_Cons(v11, v2));
+            US10::US10_Some(v1, v12, v13)
         }
         US4::US4_RuleLine => {
-            let v14: US3 = US3::US3_Idle;
-            let v15: block = block::block_Rule;
-            let v16: Rc<list_block> = Rc::new(list_block::list_block_Cons(v15, v2));
-            US10::US10_Some(v1, v14, v16)
+            let v15: US3 = US3::US3_Idle;
+            let v16: block = block::block_Rule;
+            let v17: Rc<list_block> = Rc::new(list_block::list_block_Cons(v16, v2));
+            US10::US10_Some(v1, v15, v17)
         }
         _ => {
             US10::US10_None
@@ -765,14 +778,15 @@ fn line_step_31(mut v0: Rc<str>, mut v1: Rc<list_string>, mut v2: US3, mut v3: R
 }
 fn step_3(mut v0: Rc<list_string>, mut v1: Rc<str>, mut v2: Rc<list_string>, mut v3: US3, mut v4: Rc<list_block>) -> (Rc<list_string>, US3, Rc<list_block>) {
     match &v3 {
-        US3::US3_InCode(v5) => {
-            let v5: Rc<list_string> = v5.clone();
-            code_step_4(v1, v2, v5, v4)
+        US3::US3_InCode(v5, v6) => {
+            let v5: Rc<str> = v5.clone();
+            let v6: Rc<list_string> = v6.clone();
+            code_step_4(v1, v2, v6, v5, v4)
         }
-        US3::US3_InTable(v9, v10, v11) => {
-            let v9: Rc<list_align> = v9.clone();
-            let v10: Rc<list_list_inline> = v10.clone();
-            let v11: Rc<list_list_list_inline> = v11.clone();
+        US3::US3_InTable(v10, v11, v12) => {
+            let v10: Rc<list_align> = v10.clone();
+            let v11: Rc<list_list_inline> = v11.clone();
+            let v12: Rc<list_list_list_inline> = v12.clone();
             table_step_17(v1, v0, v2, v3, v4)
         }
         _ => {

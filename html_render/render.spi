@@ -6,8 +6,8 @@
 :< doc_blocks
 :< doc_render
 :< model
-:< inline_parse
-:< markdown
+:< doc_inline
+:< doc_parse
 :< sm'_operators
 
 :? to_html t : t -> markup

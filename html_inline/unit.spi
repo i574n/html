@@ -1,4 +1,4 @@
-:< inline_parse
+:< doc_inline
 
 := main () : i32 =
     export "html_inline_parse" parse_inline
