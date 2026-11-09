@@ -1,0 +1,36 @@
+///- --package . --timeout 600000
+:# pages_api static =
+    :< testing
+
+:< sm'_operators
+:< markup
+:< doc_render
+:< model
+:< render
+:< file_views
+:< tree
+:< pages
+
+:= viewer_named (name : string) : viewer = viewer_of name
+
+:= sorted (ns : list node) : list node = sort_nodes ns
+
+:= rel_joined ((parent, name) : string * string) : string = join_rel parent name
+
+:= tree_html ((viewers, ns) : bool * list node) : string = nodes_html viewers ns |> markup_text
+
+:= index_text ((viewers, ns, has_readme, readme) : bool * list node * bool * string) : string =
+    page_text (index_page_of viewers ns (? has_readme ?> Some (markdown_html readme) |: None))
+
+:= file_text ((name, kind, text) : string * viewer * string) : string =
+    page_text (file_page_of markdown_html name kind text)
+
+:= fixture_text () : string = nested_a () ++# nested_b () ++# nested_c ()
+
+:= digit_text (n : i64) : string = digit n
+
+:= md_text (s : string) : string = md s
+
+///> rust
+:# the_api_renders_markdown_and_digits =
+    (md_text "x" |> sm'.contains "<p>x</p>", digit_text 7i64, show_i64 1205i64) |> _assert_eq (!+, "7", "1205")

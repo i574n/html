@@ -1,0 +1,5 @@
+:< doc_parse
+
+:= main () : i32 =
+    export "html_parse_markdown" parse_markdown
+    0i32

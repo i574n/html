@@ -1,0 +1,18 @@
+packageDir = '../deps/spiral/lib'
+packages = [
+    '|core-',
+    'spiral-',
+    '../html_model-',
+    '../html_inline-',
+    '../html_table-',
+    '../html_parse-',
+    '../html_render-',
+]
+link = ['../html_model-', '../html_inline-', '../html_table-', '../html_parse-', '../html_render-']
+modules = '''
+file_views
+tree
+pages
+pages_api
+unit
+'''

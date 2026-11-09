@@ -1,0 +1,20 @@
+[package]
+name = "html_walk"
+version = "0.0.1"
+edition = "2024"
+
+[package.metadata.spiral]
+entry = "unit.spi"
+output = "walk.rs"
+
+[lib]
+name = "html_walk"
+path = "walk.rs"
+
+[dependencies]
+html_model = { path = "../html_model" }
+html_inline = { path = "../html_inline" }
+html_table = { path = "../html_table" }
+html_parse = { path = "../html_parse" }
+html_render = { path = "../html_render" }
+html_pages = { path = "../html_pages" }

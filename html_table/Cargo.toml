@@ -1,0 +1,15 @@
+[package]
+name = "html_table"
+version = "0.0.1"
+edition = "2024"
+
+[package.metadata.spiral]
+entry = "unit.spi"
+output = "table.rs"
+
+[lib]
+name = "html_table"
+path = "table.rs"
+
+[dependencies]
+html_model = { path = "../html_model" }

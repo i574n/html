@@ -1,0 +1,18 @@
+[package]
+name = "html_render"
+version = "0.0.1"
+edition = "2024"
+
+[package.metadata.spiral]
+entry = "unit.spi"
+output = "render.rs"
+
+[lib]
+name = "html_render"
+path = "render.rs"
+
+[dependencies]
+html_model = { path = "../html_model" }
+html_inline = { path = "../html_inline" }
+html_table = { path = "../html_table" }
+html_parse = { path = "../html_parse" }

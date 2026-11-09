@@ -1,0 +1,76 @@
+///- --package . --timeout 600000
+:# walk static =
+    :< testing
+
+:< markup
+:< model
+:< pages_api
+:< sm'_operators
+:< file_system_operators
+
+:| listing =
+    | Listed : list string
+    | Unreadable : string
+
+:~ is_directory (path : string) : bool = file_system.directory_exists path
+
+:~ is_link (path : string) : bool = file_system.rust_is_symlink path
+
+:~ bytes_of (path : string) : i64 = file_system.rust_file_length path
+
+:~ drop_final_newline (s : string) : string = ? sm'.ends_with "\n" s ?> run_of s 0i32 (sm::length s - 1i32) |: s
+
+:~ read_lossy (path : string) : string =
+    $'std::rc::Rc::<str>::from(String::from_utf8_lossy(&std::fs::read(&*!path).unwrap()).as_ref())' : string
+
+:~ slurp (path : string) : string = read_lossy path |> sm'.replace "\r\n" "\n" |> drop_final_newline
+
+:~ names_of (path : string) : listing =
+    ?= file_system.read_dir_names path |> resultm.unbox ?|
+    | Ok names => Listed (names |> am'.vec_fold' (\ rest name => sm'.from_std_string name :: rest) [])
+    | Error e => Unreadable (sm'.format_debug e)
+
+:~ unreadable_text (path : string) (why : string) : string = "html: cannot read " ++# path ++# ": " ++# why
+
+:~ folder_of (d : string -> string -> list node) (c : string) (rel : string) (n : string) : node =
+    Folder { name = n; rel = rel; children = d c rel }
+
+:~ file_of (c : string) (rel : string) (n : string) : node = File { name = n; rel = rel; bytes = bytes_of c }
+
+:~ node_at (d : string -> string -> list node) (c : string) (rel : string) (n : string) (a : list node) : list node =
+    ? is_link c
+    ?> a
+    |? is_directory c
+    ?> folder_of d c rel n :: a
+    |? file_system.file_exists c
+    ?> file_of c rel n :: a
+    |: a
+
+:~ ^ nodes_of (d : string -> string -> list node) (path : string) (rel : string) (ns : list string) (a : list node)
+    : list node
+    =
+    ?= ns ?|
+    | [] => a
+    | n :: rest => nodes_of d path rel rest (node_at d (path </> n) (rel_joined (rel, n)) n a)
+
+:~ ^ walk (path : string) (rel : string) : list node =
+    ?= names_of path ?|
+    | Listed ns => sorted (nodes_of walk path rel ns [])
+    | Unreadable why =>
+        console.write_error_line (unreadable_text path why)
+        []
+
+:~ ^ readme_in (dir : string) (ns : list string) : bool * string =
+    ?= ns ?|
+    | [] => !-, ""
+    | n :: rest => ? sm'.to_lower n = "readme.md" ?> !+, slurp (dir </> n) |: readme_in dir rest
+
+:~ readme_of (dir : string) : bool * string =
+    ?= names_of dir ?|
+    | Listed ns => readme_in dir (? file_system.file_exists (dir </> "README.md") ?> [ "README.md" ] |: ns)
+    | Unreadable _ => !-, ""
+
+:~ refusal_of (path : string) : string =
+    ?= names_of path ?|
+    | Listed _ => ""
+    | Unreadable why => unreadable_text path why

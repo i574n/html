@@ -1,0 +1,15 @@
+[package]
+name = "html_inline"
+version = "0.0.1"
+edition = "2024"
+
+[package.metadata.spiral]
+entry = "unit.spi"
+output = "inline.rs"
+
+[lib]
+name = "html_inline"
+path = "inline.rs"
+
+[dependencies]
+html_model = { path = "../html_model" }

@@ -1,0 +1,37 @@
+///- --package . --timeout 600000
+:# model static =
+    :< testing
+
+:< sm'_operators
+:< markup
+:< doc_blocks
+:< doc_text
+
+:| viewer =
+    | Direct
+    | Source
+    | Delimited
+    | Prose
+    | Picture
+    | Diagram
+
+:| ^ node =
+    | File : { name : string; rel : string; bytes : i64 }
+    | Folder : { name : string; rel : string; children : list node }
+
+:! index_page = ()
+:! file_page = ()
+
+:| ^ page kind =
+    | IndexPage :: markup -> page index_page
+    | FilePage :: markup -> page file_page
+
+:= page_text \* k. (p : page k) : string =
+    ?= p ?|
+    | IndexPage m => markup_text m
+    | FilePage m => markup_text m
+
+///> rust
+///> gleam
+:# a_page_keeps_its_kind_static =
+    (page_text (IndexPage (trusted "i")), page_text (FilePage (trusted "f"))) |> _assert_eq ("i", "f")
