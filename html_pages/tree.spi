@@ -16,8 +16,10 @@
     show_i64 (n / 100i64) ++# "." ++# pad2 (n % 100i64)
 
 :~ bytes_label (bytes : i64) : string =
-    ? bytes > 1048576i64 ?> hundredths bytes 1048576i64 ++# " MB"
-    |? bytes > 1024i64 ?> hundredths bytes 1024i64 ++# " KB"
+    ? bytes > 1048576i64
+    ?> hundredths bytes 1048576i64 ++# " MB"
+    |? bytes > 1024i64
+    ?> hundredths bytes 1024i64 ++# " KB"
     |: hundredths bytes 1i64 ++# " B"
 
 :~ ^ node_bytes (n : node) : i64 =
@@ -32,11 +34,18 @@
 :~ char_order (a : string) (b : string) (i : i32) : i32 =
     ? sm'.char_code (sm::index a i) < sm'.char_code (sm::index b i) ?> -1i32 |: 1i32
 
+:~ length_order (a : string) (b : string) (i : i32) : i32 =
+    ? i = sm::length a && i = sm::length b
+    ?> 0i32
+    |? i = sm::length a
+    ?> -1i32
+    |: 1i32
+
 :~ ^ compare_from (a : string) (b : string) (i : i32) : i32 =
-    ? i = sm::length a && i = sm::length b ?> 0i32
-    |? i = sm::length a ?> -1i32
-    |? i = sm::length b ?> 1i32
-    |? sm::index a i = sm::index b i ?> compare_from a b (i + 1i32)
+    ? i = sm::length a || i = sm::length b
+    ?> length_order a b i
+    |? sm::index a i = sm::index b i
+    ?> compare_from a b (i + 1i32)
     |: char_order a b i
 
 :~ folder_rank (n : node) : i32 =
@@ -50,7 +59,8 @@
     | File f => f::name
 
 :~ before (a : node) (b : node) : bool =
-    ? folder_rank a = folder_rank b ?> compare_from (node_name a) (node_name b) 0i32 < 0i32
+    ? folder_rank a = folder_rank b
+    ?> compare_from (node_name a) (node_name b) 0i32 < 0i32
     |: folder_rank a < folder_rank b
 
 :? listed_before t : t -> t -> bool
@@ -60,7 +70,7 @@
 :~ ^ insert_by \* t {listed_before}. (x : t) (sorted : list t) : list t =
     ?= sorted ?|
     | m :: rest => ? listed_before x m ?> x :: sorted |: m :: insert_by x rest
-    | [] => [x]
+    | [] => [ x ]
 
 :~ ^ sort_by \* t {listed_before}. (xs : list t) : list t =
     ?= xs ?|
@@ -99,25 +109,27 @@
 
 :+ to_html node = \ n => node_html !- n
 
-:~ level_file (n : i64) (rel : string) : node = File { name = "file.txt"; rel = join_rel rel "file.txt"; bytes = n + 1i64 }
+:~ level_file (n : i64) (rel : string) : node =
+    File { name = "file.txt"; rel = join_rel rel "file.txt"; bytes = n + 1i64 }
 
 :~ level_folder (n : i64) (inner : string) (children : list node) : node =
     Folder { name = digit n; rel = inner; children = children }
 
 :~ ^ level_fixture (n : i64) (rel : string) : list node =
     := inner = join_rel rel (digit n)
-    ? n = 0i64 ?> [level_file n rel] |: [level_folder n inner (level_fixture (n - 1i64) inner); level_file n rel]
+    ? n = 0i64 ?> [ level_file n rel ] |: [ level_folder n inner (level_fixture (n - 1i64) inner); level_file n rel ]
 
 := order_fixture () : list node =
     := file = \ (n : string) (b : i64) => File { name = n; rel = n; bytes = b }
-    [file "b.txt" 1i64; file "a.txt" 2i64; Folder { name = "m"; rel = "m"; children = [] }; file "B" 0i64]
+    [ file "b.txt" 1i64; file "a.txt" 2i64; Folder { name = "m"; rel = "m"; children = [] }; file "B" 0i64 ]
 
 := linked_fixture () : string =
     "<div>&#128196; <a href=\"a.spi.html\">a.spi</a><span> (5.00 B)</span> <a href=\"a.spi\"><span>raw</span></a></div>"
 
 := plain_fixture () : string = "<div>&#128196; <a href=\"c.txt\">c.txt</a><span> (1.00 B)</span></div>"
 
-:= nested_fixture () : list node = [Folder { name = "_.root"; rel = "_.root"; children = level_fixture 3i64 "_.root" }]
+:= nested_fixture () : list node =
+    [ Folder { name = "_.root"; rel = "_.root"; children = level_fixture 3i64 "_.root" } ]
 
 := nested_a1 () : string =
     "<details open=\"true\"><summary>&#128194; <a href=\"_.root\">_.root</a><span> (10.00 B)</span></summary><div>"
@@ -144,8 +156,8 @@
 
 ///> rust
 :# size_labels_switch_units_past_each_power =
-    listm.map bytes_label [1024i64; 1025i64; 1048576i64; 1048577i64; 0i64]
-    |> _assert_eq ["1024.00 B"; "1.00 KB"; "1024.00 KB"; "1.00 MB"; "0.00 B"]
+    listm.map bytes_label [ 1024i64; 1025i64; 1048576i64; 1048577i64; 0i64 ]
+    |> _assert_eq [ "1024.00 B"; "1.00 KB"; "1024.00 KB"; "1.00 MB"; "0.00 B" ]
 
 ///> rust
 :# the_dir_tree_html_nested_fixture_renders_byte_for_byte =
@@ -154,7 +166,7 @@
 ///> rust
 :# folders_come_first_then_names_in_ordinal_order =
     sort_nodes (order_fixture ()) |> listm.map node_name
-    |> _assert_eq ["m"; "B"; "a.txt"; "b.txt"]
+    |> _assert_eq [ "m"; "B"; "a.txt"; "b.txt" ]
 
 ///> rust
 :# folder_bytes_sum_their_children =

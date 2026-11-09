@@ -20,7 +20,8 @@
 
 :~ drop_final_newline (s : string) : string = ? sm'.ends_with "\n" s ?> run_of s 0i32 (sm::length s - 1i32) |: s
 
-:~ read_lossy (path : string) : string = $'std::rc::Rc::<str>::from(String::from_utf8_lossy(&std::fs::read(&*!path).unwrap()).as_ref())' : string
+:~ read_lossy (path : string) : string =
+    $'std::rc::Rc::<str>::from(String::from_utf8_lossy(&std::fs::read(&*!path).unwrap()).as_ref())' : string
 
 :~ slurp (path : string) : string = read_lossy path |> sm'.replace "\r\n" "\n" |> drop_final_newline
 
@@ -37,9 +38,12 @@
 :~ file_of (c : string) (rel : string) (n : string) : node = File { name = n; rel = rel; bytes = bytes_of c }
 
 :~ node_at (d : string -> string -> list node) (c : string) (rel : string) (n : string) (a : list node) : list node =
-    ? is_link c ?> a
-    |? is_directory c ?> folder_of d c rel n :: a
-    |? file_system.file_exists c ?> file_of c rel n :: a
+    ? is_link c
+    ?> a
+    |? is_directory c
+    ?> folder_of d c rel n :: a
+    |? file_system.file_exists c
+    ?> file_of c rel n :: a
     |: a
 
 :~ ^ nodes_of (d : string -> string -> list node) (path : string) (rel : string) (ns : list string) (a : list node)
@@ -63,7 +67,7 @@
 
 :~ readme_of (dir : string) : bool * string =
     ?= names_of dir ?|
-    | Listed ns => readme_in dir (? file_system.file_exists (dir </> "README.md") ?> ["README.md"] |: ns)
+    | Listed ns => readme_in dir (? file_system.file_exists (dir </> "README.md") ?> [ "README.md" ] |: ns)
     | Unreadable _ => !-, ""
 
 :~ refusal_of (path : string) : string =

@@ -25,13 +25,14 @@
 ///> rust
 ///> gleam
 :# every_inline_constructor_renders =
-    inlines_html [Text "a&"; Code "<"; Strong [Text "b"]; Link ("l", "x.html"); AutoLink "https://x.org"] |> markup_text
+    inlines_html [ Text "a&"; Code "<"; Strong [ Text "b" ]; Link ("l", "x.html"); AutoLink "https://x.org" ]
+    |> markup_text
     |> _assert_eq (inline_fixture ())
 
 ///> rust
 ///> gleam
 :# images_and_badges_render =
-    inlines_html [Image ("logo", "logo.png"); LinkedImage ("CI", "b.svg", "ci.html")] |> markup_text
+    inlines_html [ Image ("logo", "logo.png"); LinkedImage ("CI", "b.svg", "ci.html") ] |> markup_text
     |> _assert_eq "<img src=\"logo.png\" alt=\"logo\"><a href=\"ci.html\"><img src=\"b.svg\" alt=\"CI\"></a>"
 
 ///> rust

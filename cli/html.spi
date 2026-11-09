@@ -91,8 +91,10 @@
     ? got <> fixture_text () ?> Some got |: None
 
 :~ fixture_failure () : option string =
-    ? viewers_kept (viewer_fixture ()) |> not ?> Some "viewers: want b.tsv.html, a.spi.html kept, no c.txt.html"
-    |? missing_refused () |> not ?> Some "walk: an unreadable folder must be refused"
+    ? viewers_kept (viewer_fixture ()) |> not
+    ?> Some "viewers: want b.tsv.html, a.spi.html kept, no c.txt.html"
+    |? missing_refused () |> not
+    ?> Some "walk: an unreadable folder must be refused"
     |: None
 
 :~ self_test () : outcome =
