@@ -26,7 +26,7 @@
 :~ slurp (path : string) : string = read_lossy path |> sm'.replace "\r\n" "\n" |> drop_final_newline
 
 :~ names_of (path : string) : listing =
-    ?= file_system.read_dir_names path |> resultm.unbox ?|
+    ?= file_system.read_directory_names path |> resultm.unbox ?|
     | Ok names => Listed (names |> am'.vec_fold' (\ rest name => sm'.from_std_string name :: rest) [])
     | Error e => Unreadable (sm'.format_debug e)
 

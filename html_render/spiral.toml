@@ -10,5 +10,5 @@ packages = [
 link = ['../html_model-', '../html_inline-', '../html_table-', '../html_parse-']
 modules = '''
 render
-unit
+html_render
 '''

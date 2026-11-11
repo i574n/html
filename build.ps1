@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 . deps/spiral/lib/spiral/lib.ps1
 
 $units = 'html_model', 'html_inline', 'html_table', 'html_parse', 'html_render', 'html_pages', 'html_walk'
-$notebooks = @($units | ForEach-Object { Get-ChildItem $_ -Filter *.spi } | Where-Object Name -ne 'unit.spi' | ForEach-Object { '--path'; $_.FullName })
+$notebooks = @($units | ForEach-Object { $unit = $_; Get-ChildItem $unit -Filter *.spi | Where-Object BaseName -ne $unit } | ForEach-Object { '--path'; $_.FullName })
 if (!$fast) {
     $env:SPIRAL_CELLS_MEMO = '0'
     Push-Location ($env:SPIRAL_CELLS_ROOT ? $env:SPIRAL_CELLS_ROOT : (Join-Path 'deps' 'spiral' 'apps' 'cells'))
@@ -19,12 +19,12 @@ if (!$fast) {
     if (!($cells -match '^spiral-tests total')) { throw "build.ps1 / Spiral test cells printed no spiral-tests total line" }
 }
 
-$crates = @($units | ForEach-Object { @{ Spi = "$_/unit.spi"; Rs = "$_/$($_ -replace '^html_', '').rs"; Name = "html/$($_ -replace '^html_', '')" } }) + @(@{ Spi = 'markdown/entry.spi'; Rs = 'markdown/entry.rs'; Name = 'html/markdown' }, @{ Spi = 'cli/html.spi'; Rs = 'cli/html.rs'; Name = 'html/cli' })
+$crates = @($units | ForEach-Object { @{ Spi = "$_/$_.spi"; Rs = "$_/$($_ -replace '^html_', '').rs"; Name = "html/$($_ -replace '^html_', '')" } }) + @(@{ Spi = 'markdown/entry.spi'; Rs = 'markdown/entry.rs'; Name = 'html/markdown' }, @{ Spi = 'cli/html.spi'; Rs = 'cli/html.rs'; Name = 'html/cli' })
 foreach ($c in $crates) {
     if (!(BuildSpiral $c.Spi $c.Rs $c.Name)) { throw "RUST-FAILED $($c.Name) / compile" }
 }
-{ cargo +nightly-2026-11-05 build --release } | Invoke-Block
-$cargoTarget = (cargo +nightly-2026-11-05 metadata --format-version 1 --no-deps | ConvertFrom-Json).target_directory
+{ cargo build --release } | Invoke-Block
+$cargoTarget = (cargo metadata --format-version 1 --no-deps | ConvertFrom-Json).target_directory
 if (!$cargoTarget) { throw "RUST-FAILED html / cargo metadata found no target directory" }
 
 Remove-Item dist -Recurse -Force -ErrorAction Ignore

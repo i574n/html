@@ -4,7 +4,7 @@ version = "0.0.1"
 edition = "2024"
 
 [package.metadata.spiral]
-entry = "unit.spi"
+entry = "html_inline.spi"
 output = "inline.rs"
 
 [lib]

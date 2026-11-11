@@ -22,3 +22,6 @@ debug = false
 panic = "abort"
 overflow-checks = true
 rustflags = ["-C", "link-arg=-s"]
+
+[workspace.metadata.spiral]
+template = "typed-units/1"
